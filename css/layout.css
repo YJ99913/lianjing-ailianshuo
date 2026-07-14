@@ -1,0 +1,54 @@
+/* ===== layout.css — 舞台與 HUD 網格 ===== */
+
+/* 16:9 舞台等比縮放置中 */
+#viewport {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #0d0c0a;
+}
+#game-root {
+  position: relative;
+  width: var(--stage-w);
+  height: var(--stage-h);
+  transform-origin: center center;
+  background: var(--rice-white);
+  overflow: hidden;
+  box-shadow: 0 0 80px rgba(0,0,0,0.6);
+}
+.layer { position: absolute; inset: 0; }
+#scene-layer    { z-index: var(--z-scene); }
+/* 覆蓋層容器一律不攔截事件，只有其子元素（實際 UI）才接收點擊，
+   避免空的上層 layer 蓋住下層可互動內容 */
+#hud-layer, #dialogue-layer, #panel-layer, #overlay-layer, #toast-layer {
+  pointer-events: none;
+}
+#hud-layer > *, #dialogue-layer > *, #panel-layer > *,
+#overlay-layer > *, #toast-layer > * { pointer-events: auto; }
+#hud-layer      { z-index: var(--z-hud); }
+#dialogue-layer { z-index: var(--z-dialogue); }
+#panel-layer    { z-index: var(--z-panel); }
+#overlay-layer  { z-index: var(--z-overlay); }
+#toast-layer    { z-index: var(--z-toast); }
+
+/* HUD 四角定位 */
+.hud-topleft     { position:absolute; top: 24px; left: 24px; }
+.hud-topright    { position:absolute; top: 24px; right: 24px; }
+.hud-bottomleft  { position:absolute; bottom: 24px; left: 24px; }
+.hud-bottomright { position:absolute; bottom: 24px; right: 24px; }
+
+/* 載入畫面 */
+#boot-screen {
+  position: fixed; inset: 0; z-index: var(--z-boot);
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 45%, #201d18, #0d0c0a 75%);
+  transition: opacity 0.8s var(--ease-soft);
+}
+#boot-screen.hide { opacity: 0; pointer-events: none; }
+.boot-inner { text-align: center; color: var(--rice-white); }
+.boot-ink {
+  font-family: var(--font-title); font-size: 120px; color: var(--celadon);
+  text-shadow: 0 0 30px rgba(110,139,122,0.5);
+}
+.boot-title { font-family: var(--font-title); font-size: 44px; letter-spacing: 12px; margin-top: 8px; }
+.boot-sub   { font-family: var(--font-body); font-size: 20px; color: var(--gold-light); letter-spacing: 6px; margin-top: 6px; }
+.boot-loading { font-size: 15px; color: var(--ink-soft); margin-top: 40px; letter-spacing: 3px; }
