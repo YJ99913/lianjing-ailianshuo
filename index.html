@@ -18,12 +18,12 @@
   <!-- 遊戲以固定 16:9 舞台等比縮放置中 -->
   <div id="viewport">
     <div id="game-root">
-      <div id="scene-layer" class="layer"></div>
-      <div id="hud-layer" class="layer"></div>
-      <div id="dialogue-layer" class="layer"></div>
-      <div id="panel-layer" class="layer"></div>
-      <div id="overlay-layer" class="layer"></div>
-      <div id="toast-layer" class="layer"></div>
+      <div id="scene-layer" class="layer"></div>     <!-- 場景 -->
+      <div id="hud-layer" class="layer"></div>       <!-- 四角 HUD -->
+      <div id="dialogue-layer" class="layer"></div>  <!-- 對話 -->
+      <div id="panel-layer" class="layer"></div>     <!-- 背包/謎題/卷軸 -->
+      <div id="overlay-layer" class="layer"></div>   <!-- 過場動畫 -->
+      <div id="toast-layer" class="layer"></div>     <!-- 成就通知 -->
     </div>
   </div>
 
@@ -37,7 +37,6 @@
     </div>
   </div>
 
-  <!-- 合併打包版（IIFE，無 ES Module import，故 file:// 與 GitHub Pages 皆可運作） -->
-  <script src="js/bundle.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>

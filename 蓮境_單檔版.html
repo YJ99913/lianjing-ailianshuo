@@ -1,0 +1,2555 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>蓮境：周敦頤的最後考驗</title>
+  <meta name="description" content="一款以〈愛蓮說〉為核心的沉浸式古風密室逃脫閱讀素養遊戲。" />
+<style>
+/* ===== reset.css — 樣式重置 ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font-body);
+  color: var(--ink-black);
+  background: #0d0c0a;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+img { display: block; max-width: 100%; -webkit-user-drag: none; }
+ul, ol { list-style: none; }
+button, input { font-family: inherit; color: inherit; background: none; border: none; outline: none; }
+/* 全案禁用原生 button 外觀，一律以自繪熱區呈現 */
+button { cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+
+/* ===== tokens.css — Design Tokens（對應 Phase 4 色彩/字體規範） ===== */
+:root {
+  /* 色彩 */
+  --ink-black:   #1C1B18;   /* 墨黑：主文字、描邊 */
+  --ink-soft:    #4A4640;   /* 淡墨：次要文字、陰影 */
+  --rice-white:  #F3ECDD;   /* 米白：背景底、宣紙 */
+  --rice-deep:   #E4D8C0;   /* 舊宣：面板次層 */
+  --celadon:     #6E8B7A;   /* 青綠：主強調、可互動描邊 */
+  --celadon-deep:#47604F;   /* 深青：hover/選中 */
+  --gold-light:  #C9A96A;   /* 淺金：點綴、成就、高亮 */
+  --seal-red:    #9E4B3B;   /* 印泥朱：僅蓋章瞬間，面積 <3% */
+
+  /* 半透明宣紙面板 */
+  --paper-panel: rgba(243, 236, 221, 0.94);
+  --paper-veil:  rgba(28, 27, 24, 0.55);
+
+  /* 字體 */
+  --font-title: "Noto Serif TC", "Source Han Serif TC", "楷體", "KaiTi", serif;
+  --font-body:  "Noto Serif TC", "Source Han Serif TC", "宋體", "SimSun", serif;
+
+  /* 字級 */
+  --fs-title: 40px;
+  --fs-h2:    28px;
+  --fs-dialogue: 22px;
+  --fs-body:  18px;
+  --fs-note:  15px;
+
+  /* 間距與圓角 */
+  --gap-s: 8px;  --gap-m: 16px;  --gap-l: 28px;
+  --radius: 6px;
+
+  /* 動畫緩動（統一柔和曲線） */
+  --ease-soft: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --dur-fast: 0.2s;  --dur-mid: 0.6s;  --dur-slow: 1.2s;
+
+  /* 舞台基準 */
+  --stage-w: 1920px;
+  --stage-h: 1080px;
+
+  /* z-index 層級（對應 Phase 4） */
+  --z-scene: 10; --z-hud: 20; --z-dialogue: 30;
+  --z-panel: 40; --z-overlay: 50; --z-toast: 60; --z-boot: 100;
+}
+
+/* ===== layout.css — 舞台與 HUD 網格 ===== */
+
+/* 16:9 舞台等比縮放置中 */
+#viewport {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #0d0c0a;
+}
+#game-root {
+  position: relative;
+  width: var(--stage-w);
+  height: var(--stage-h);
+  transform-origin: center center;
+  background: var(--rice-white);
+  overflow: hidden;
+  box-shadow: 0 0 80px rgba(0,0,0,0.6);
+}
+.layer { position: absolute; inset: 0; }
+#scene-layer    { z-index: var(--z-scene); }
+/* 覆蓋層容器一律不攔截事件，只有其子元素（實際 UI）才接收點擊，
+   避免空的上層 layer 蓋住下層可互動內容 */
+#hud-layer, #dialogue-layer, #panel-layer, #overlay-layer, #toast-layer {
+  pointer-events: none;
+}
+#hud-layer > *, #dialogue-layer > *, #panel-layer > *,
+#overlay-layer > *, #toast-layer > * { pointer-events: auto; }
+#hud-layer      { z-index: var(--z-hud); }
+#dialogue-layer { z-index: var(--z-dialogue); }
+#panel-layer    { z-index: var(--z-panel); }
+#overlay-layer  { z-index: var(--z-overlay); }
+#toast-layer    { z-index: var(--z-toast); }
+
+/* HUD 四角定位 */
+.hud-topleft     { position:absolute; top: 24px; left: 24px; }
+.hud-topright    { position:absolute; top: 24px; right: 24px; }
+.hud-bottomleft  { position:absolute; bottom: 24px; left: 24px; }
+.hud-bottomright { position:absolute; bottom: 24px; right: 24px; }
+
+/* 載入畫面 */
+#boot-screen {
+  position: fixed; inset: 0; z-index: var(--z-boot);
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 45%, #201d18, #0d0c0a 75%);
+  transition: opacity 0.8s var(--ease-soft);
+}
+#boot-screen.hide { opacity: 0; pointer-events: none; }
+.boot-inner { text-align: center; color: var(--rice-white); }
+.boot-ink {
+  font-family: var(--font-title); font-size: 120px; color: var(--celadon);
+  text-shadow: 0 0 30px rgba(110,139,122,0.5);
+}
+.boot-title { font-family: var(--font-title); font-size: 44px; letter-spacing: 12px; margin-top: 8px; }
+.boot-sub   { font-family: var(--font-body); font-size: 20px; color: var(--gold-light); letter-spacing: 6px; margin-top: 6px; }
+.boot-loading { font-size: 15px; color: var(--ink-soft); margin-top: 40px; letter-spacing: 3px; }
+
+/* ===== ui.css — 古風 UI 元件 ===== */
+
+/* 共用 HUD 元件 */
+.hud-item { display: flex; flex-direction: column; align-items: center; gap: 4px; transition: opacity var(--dur-mid) var(--ease-soft); }
+.hud-cap, .seal-cap, .jade-seal-cap {
+  font-family: var(--font-title); font-size: 14px; letter-spacing: 3px; color: var(--rice-white);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+.hud-topleft, .hud-topright, .hud-bottomleft, .hud-bottomright { transition: opacity var(--dur-mid) var(--ease-soft); }
+
+/* 章節牌（左上） */
+.chapter-tag {
+  padding: 10px 18px; background: var(--paper-panel);
+  border: 1px solid rgba(110,139,122,0.5); border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+.chapter-text { font-family: var(--font-title); font-size: var(--fs-body); color: var(--ink-black); letter-spacing: 3px; }
+
+/* 香炷計時（右上） */
+.incense-timer { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.incense-svg { width: 26px; height: 78px; }
+.timer-text { font-family: var(--font-title); font-size: var(--fs-body); color: var(--rice-white); text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+.timer-total { font-size: 12px; color: var(--gold-light); letter-spacing: 1px; }
+
+/* 燈籠（右下） */
+.lantern { cursor: pointer; }
+.lantern-svg { width: 56px; height: 84px; }
+.lantern .lantern-body { transition: filter var(--dur-mid) var(--ease-soft); }
+.lantern.lit .lantern-body { filter: drop-shadow(0 0 10px var(--gold-light)); }
+
+/* 竹編背包（左下）；不設 position 以免覆蓋 .hud-bottomleft 的絕對定位 */
+.bamboo-bag { cursor: pointer; }
+.bag-svg { width: 64px; height: 58px; transition: transform var(--dur-fast) var(--ease-soft); }
+.bamboo-bag:hover .bag-svg, .bamboo-bag:focus .bag-svg { transform: translateY(-3px); }
+.bamboo-bag.flash .bag-svg { filter: drop-shadow(0 0 12px var(--gold-light)); }
+.bag-panel {
+  position: absolute; bottom: 84px; left: 0; width: 340px;
+  background: var(--paper-panel); border: 1px solid rgba(110,139,122,0.5);
+  border-radius: var(--radius); padding: var(--gap-m); box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  opacity: 0; transform: translateY(8px); transition: opacity .25s var(--ease-soft), transform .25s var(--ease-soft);
+}
+.bag-panel.show { opacity: 1; transform: translateY(0); }
+.bag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap-s); }
+.bag-cell { display: flex; flex-direction: column; align-items: center; font-size: 24px; color: var(--ink-black); }
+.bag-cell span { font-size: 11px; margin-top: 2px; color: var(--ink-soft); }
+.bag-empty { text-align: center; color: var(--ink-soft); font-size: var(--fs-note); }
+
+/* 印章（開始/主要動作） */
+.seal-button { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+.seal-svg { width: 108px; height: 108px; transition: transform var(--dur-fast) var(--ease-soft), filter var(--dur-fast) var(--ease-soft); }
+.seal-button:hover .seal-svg, .seal-button:focus .seal-svg { transform: translateY(-2px); filter: drop-shadow(0 0 10px rgba(158,75,59,0.5)); }
+
+/* 玉璽（確認） */
+.jade-seal { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.jade-seal-svg { width: 76px; height: 76px; transition: transform var(--dur-fast) var(--ease-soft); }
+.jade-seal:hover .jade-seal-svg, .jade-seal:focus .jade-seal-svg { transform: translateY(-2px); }
+.jade-seal.disabled { opacity: .4; pointer-events: none; }
+
+/* 卷軸面板 */
+.scroll-panel { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 60%; max-width: 760px; }
+.scroll-roller { height: 16px; background: linear-gradient(#8a6b3f, #6b5230); border-radius: 8px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); }
+.scroll-paper {
+  background: var(--paper-panel); border-left: 1px solid rgba(110,139,122,0.4); border-right: 1px solid rgba(110,139,122,0.4);
+  padding: var(--gap-l) 48px; max-height: 0; overflow: hidden; transition: max-height .5s var(--ease-soft), padding .5s var(--ease-soft);
+}
+.scroll-panel.unroll .scroll-paper { max-height: 70vh; overflow: auto; }
+.scroll-panel.rolling .scroll-paper { max-height: 0; padding-top: 0; padding-bottom: 0; }
+.scroll-title { font-family: var(--font-title); font-size: var(--fs-h2); color: var(--ink-black); text-align: center; margin-bottom: var(--gap-m); letter-spacing: 3px; }
+.scroll-content { font-size: var(--fs-body); line-height: 2; color: var(--ink-black); letter-spacing: 1px; }
+.scroll-back { text-align: center; margin-top: var(--gap-l); font-family: var(--font-title); color: var(--celadon-deep); letter-spacing: 4px; cursor: pointer; padding: 8px; border-radius: var(--radius); }
+.scroll-back:hover, .scroll-back:focus { color: var(--gold-light); background: rgba(110,139,122,0.12); outline: none; }
+
+/* ===== animations.css — 環境與互動動畫 ===== */
+
+/* ---- 印章蓋章 ---- */
+@keyframes seal-stamp {
+  0% { transform: translateY(-14px) scale(1.04); }
+  45% { transform: translateY(2px) scale(0.97); }
+  100% { transform: translateY(0) scale(1); }
+}
+.seal-button.stamp .seal-svg { animation: seal-stamp .26s var(--ease-soft); }
+
+/* ---- 玉璽下沉 + 印泥暈染 ---- */
+@keyframes jade-press { 0%{transform:translateY(0);} 40%{transform:translateY(4px) scale(.96);} 100%{transform:translateY(0);} }
+@keyframes ink-bloom { 0%{opacity:.6; transform:scale(.4);} 100%{opacity:0; transform:scale(1.6);} }
+.jade-seal.stamping .jade-seal-svg { animation: jade-press .3s var(--ease-soft); }
+.jade-seal.stamping::after {
+  content:""; position:absolute; inset:0; margin:auto; width:60px; height:60px; border-radius:8px;
+  background: radial-gradient(circle, rgba(158,75,59,.5), transparent 70%);
+  animation: ink-bloom .5s var(--ease-soft) forwards;
+}
+.jade-seal { position: relative; }
+
+/* ---- 荷葉飄動 ---- */
+@keyframes lotus-sway { 0%,100%{transform:rotate(-3deg);} 50%{transform:rotate(3deg);} }
+.anim-lotus-sway { animation: lotus-sway 5s var(--ease-soft) infinite; transform-origin: bottom center; }
+
+/* ---- 水波擴散 ---- */
+@keyframes ripple { 0%{opacity:.5; transform:scale(.2);} 100%{opacity:0; transform:scale(2.4);} }
+.fx-ripple { position:absolute; border:2px solid var(--celadon); border-radius:50%; width:80px; height:80px; pointer-events:none; animation: ripple .8s var(--ease-soft) forwards; }
+
+/* ---- 花瓣飄落 ---- */
+@keyframes petal-fall { 0%{opacity:0; transform:translateY(-20px) rotate(0);} 15%{opacity:.9;} 100%{opacity:0; transform:translateY(420px) rotate(220deg);} }
+.fx-petal { position:absolute; width:14px; height:14px; background:radial-gradient(circle at 30% 30%, #f5e6d0, #d8b98a); border-radius:0 60% 0 60%; pointer-events:none; animation: petal-fall 9s linear infinite; }
+
+/* ---- 風吹竹林 ---- */
+@keyframes bamboo-bend { 0%,100%{transform:skewX(0);} 50%{transform:skewX(-3deg);} }
+.anim-bamboo { animation: bamboo-bend 5s var(--ease-soft) infinite; transform-origin: bottom; }
+
+/* ---- 燈籠晃動 ---- */
+@keyframes lantern-swing { 0%,100%{transform:rotate(-4deg);} 50%{transform:rotate(4deg);} }
+.lantern .lantern-svg { animation: lantern-swing 3.4s var(--ease-soft) infinite; transform-origin: top center; }
+
+/* ---- 石門開啟（位移） ---- */
+@keyframes door-open-l { to { transform: translateX(-100%);} }
+@keyframes door-open-r { to { transform: translateX(100%);} }
+.fx-door-l { animation: door-open-l 1.2s var(--ease-soft) forwards; }
+.fx-door-r { animation: door-open-r 1.2s var(--ease-soft) forwards; }
+
+/* ---- 書頁翻動 ---- */
+@keyframes page-turn { 0%{transform:rotateY(0);} 100%{transform:rotateY(-160deg);} }
+.fx-page-turn { transform-origin: left center; animation: page-turn .6s var(--ease-soft) forwards; backface-visibility:hidden; }
+
+/* ---- 墨跡暈開（顯字/過場輔助） ---- */
+@keyframes ink-reveal { 0%{opacity:0; filter:blur(8px);} 100%{opacity:1; filter:blur(0);} }
+.fx-ink-reveal { animation: ink-reveal 1.2s var(--ease-soft) forwards; }
+
+/* ---- 蓮花綻放（成就） ---- */
+@keyframes lotus-bloom { 0%{opacity:0; transform:scale(.3) rotate(-20deg);} 60%{opacity:1;} 100%{opacity:1; transform:scale(1) rotate(0);} }
+.fx-lotus-bloom { animation: lotus-bloom .8s var(--ease-soft) forwards; }
+
+/* 尊重使用者減少動態偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
+
+/* ===== screens.css — 各畫面樣式 ===== */
+
+#scene-layer .scene,
+#scene-layer .scene-wrap {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.scene { font-family: var(--font-title); color: var(--ink-soft); }
+.scene-placeholder { font-size: 26px; letter-spacing: 6px; opacity: .7; }
+
+/* ---- 墨跡過場遮罩 ---- */
+.ink-transition {
+  position: absolute; inset: 0; z-index: 1;
+  background: radial-gradient(circle at 50% 50%, rgba(28,27,24,0.0), rgba(28,27,24,1) 70%);
+  opacity: 0;
+  transition: opacity 0.7s var(--ease-soft);
+  pointer-events: none;
+}
+.ink-transition.active { opacity: 1; }
+.ink-transition.leaving { opacity: 0; }
+
+/* ---- 通用「宣紙面板」 ---- */
+.op-paper, .tut-paper {
+  max-width: 60%; padding: var(--gap-l) 56px;
+  background: var(--paper-panel);
+  border: 1px solid rgba(110,139,122,0.35);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.35), inset 0 0 60px rgba(228,216,192,0.4);
+  text-align: center;
+}
+
+/* ---- 開場 ---- */
+.scene-opening { background: radial-gradient(circle at 50% 40%, #26221b, #0d0c0a 80%); }
+.op-verse {
+  font-family: var(--font-title); font-size: var(--fs-h2); color: var(--ink-black);
+  letter-spacing: 4px; opacity: 0; filter: blur(6px);
+  transition: opacity 1.2s var(--ease-soft), filter 1.2s var(--ease-soft);
+}
+.op-verse.ink-in { opacity: 1; filter: blur(0); }
+.op-narr {
+  margin-top: var(--gap-l); font-size: var(--fs-body); line-height: 1.9;
+  color: var(--ink-soft); letter-spacing: 2px;
+}
+.op-enter {
+  display: inline-block; margin-top: var(--gap-l);
+  font-family: var(--font-title); font-size: var(--fs-body);
+  color: var(--celadon-deep); letter-spacing: 6px; cursor: pointer;
+  padding: 10px 24px; border-radius: var(--radius);
+  transition: color var(--dur-fast) var(--ease-soft), background var(--dur-fast) var(--ease-soft);
+}
+.op-enter:hover, .op-enter:focus { color: var(--gold-light); background: rgba(110,139,122,0.12); outline: none; }
+
+/* ---- 教學 ---- */
+.scene-tutorial { background: radial-gradient(circle at 50% 45%, #2a2a22, #14130f 80%); }
+.tut-name { font-family: var(--font-title); font-size: var(--fs-body); color: var(--celadon); letter-spacing: 4px; margin-bottom: var(--gap-m); }
+.tut-line { font-size: var(--fs-dialogue); line-height: 2; color: var(--ink-black); letter-spacing: 2px; }
+
+/* ===== 對話框 ===== */
+.dialogue-box {
+  position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%);
+  width: 70%; max-width: 900px; min-height: 120px;
+  background: var(--paper-panel); border: 1px solid rgba(110,139,122,0.5);
+  border-radius: var(--radius); padding: 22px 32px; cursor: pointer;
+  box-shadow: 0 10px 34px rgba(0,0,0,0.4);
+}
+.dlg-npc { font-family: var(--font-title); font-size: var(--fs-body); color: var(--celadon-deep); letter-spacing: 3px; margin-bottom: 8px; }
+.dlg-text { font-size: var(--fs-dialogue); line-height: 1.9; color: var(--ink-black); letter-spacing: 1px; min-height: 1.9em; }
+.dlg-more { position: absolute; right: 20px; bottom: 12px; color: var(--celadon); animation: lantern-swing 1.2s infinite; }
+.dlg-options { margin-top: var(--gap-m); display: flex; flex-direction: column; gap: 10px; }
+.dlg-opt { padding: 12px 18px; background: var(--rice-deep); border: 1px solid rgba(110,139,122,0.4); border-radius: var(--radius); font-size: var(--fs-body); color: var(--ink-black); transition: background var(--dur-fast), color var(--dur-fast); }
+.dlg-opt:hover, .dlg-opt:focus { background: var(--celadon); color: var(--rice-white); outline: none; }
+
+/* ===== 謎題面板 ===== */
+.puzzle-host {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  width: 72%; max-width: 900px; max-height: 80vh; overflow: auto;
+  background: var(--paper-panel); border: 1px solid rgba(110,139,122,0.5);
+  border-radius: var(--radius); padding: var(--gap-l) 40px; box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+.pz-prompt { font-family: var(--font-title); font-size: var(--fs-body); color: var(--ink-black); letter-spacing: 2px; margin-bottom: var(--gap-m); line-height: 1.8; }
+.pz-tip { margin-top: var(--gap-m); font-size: var(--fs-note); color: var(--ink-soft); }
+.pz-done { box-shadow: 0 0 0 2px var(--celadon), 0 12px 40px rgba(0,0,0,0.45); }
+
+/* 語序 */
+.pz-slots { min-height: 48px; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; border-bottom: 2px dashed rgba(110,139,122,0.4); margin-bottom: var(--gap-m); }
+.pz-slot { padding: 8px 14px; background: var(--celadon); color: var(--rice-white); border-radius: var(--radius); font-size: var(--fs-body); cursor: pointer; }
+.pz-pool { display: flex; flex-wrap: wrap; gap: 10px; }
+.pz-chip { padding: 10px 16px; background: var(--rice-deep); border: 1px solid rgba(110,139,122,0.4); border-radius: var(--radius); font-size: var(--fs-body); color: var(--ink-black); cursor: pointer; transition: opacity var(--dur-fast); }
+.pz-chip.seg { max-width: 100%; line-height: 1.6; }
+.pz-chip.used { opacity: .25; pointer-events: none; }
+
+/* 配對 */
+.pz-match { display: flex; gap: 40px; justify-content: center; }
+.pz-col { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.pz-item { padding: 12px 16px; background: var(--rice-deep); border: 1px solid rgba(110,139,122,0.4); border-radius: var(--radius); font-size: var(--fs-body); color: var(--ink-black); cursor: pointer; text-align: center; transition: background var(--dur-fast); }
+.pz-item.sel { background: var(--gold-light); color: var(--ink-black); }
+.pz-item.matched { background: var(--celadon); color: var(--rice-white); pointer-events: none; }
+.pz-item.wrong { background: var(--seal-red); color: var(--rice-white); }
+
+/* 篩選 */
+.pz-filter { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.pz-flower { padding: 18px 24px; background: var(--rice-deep); border: 1px solid rgba(110,139,122,0.4); border-radius: var(--radius); font-size: var(--fs-body); color: var(--ink-black); cursor: pointer; transition: all var(--dur-fast); }
+.pz-flower.removed { opacity: .28; text-decoration: line-through; }
+.pz-flower.wrong { background: var(--seal-red); color: var(--rice-white); }
+
+/* 顯影 */
+.reveal-wall { position: relative; height: 120px; background: linear-gradient(#3a352b,#2a271f); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.reveal-target { font-family: var(--font-title); font-size: 30px; letter-spacing: 6px; color: var(--rice-white); opacity: 0; }
+.reveal-target.shown { opacity: 1; }
+.mud-spot { position: absolute; top: 20%; width: 56px; height: 70px; background: radial-gradient(circle,#4a3f2c,#2a2418); border-radius: 40%; cursor: pointer; transition: opacity .4s; }
+.mud-spot.wiped { opacity: 0; pointer-events: none; }
+
+/* 機關 */
+.mech-stage { text-align: center; margin-bottom: var(--gap-m); }
+.mech-target { display: block; font-family: var(--font-title); font-size: 26px; letter-spacing: 5px; color: var(--ink-black); opacity: .25; transition: opacity .6s; }
+.mech-target.shown { opacity: 1; }
+.mech-gauge { height: 12px; background: var(--rice-deep); border-radius: 6px; overflow: hidden; margin-top: 12px; }
+.mech-fill { height: 100%; background: var(--celadon); transition: width .4s var(--ease-soft); }
+.mech-knob { margin: 0 auto; margin-top: var(--gap-m); width: fit-content; padding: 12px 22px; background: var(--celadon-deep); color: var(--rice-white); border-radius: var(--radius); font-family: var(--font-title); letter-spacing: 2px; cursor: pointer; }
+.mech-knob:hover, .mech-knob:focus { background: var(--celadon); outline: none; }
+
+/* 佔位場景可互動熱區 */
+.hotspot { position: absolute; cursor: pointer; border-radius: 8px; transition: box-shadow var(--dur-fast); }
+.hotspot:hover, .hotspot:focus { box-shadow: 0 0 0 2px var(--gold-light); outline: none; }
+
+/* ===== level.css — 關卡場景樣式 ===== */
+.scene-level { flex-direction: column; }
+.level-bg {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.level-bg-label { font-family: var(--font-title); font-size: 24px; letter-spacing: 6px; color: var(--ink-soft); opacity: .5; }
+
+/* 各關背景色調（暫以漸層代真實背景圖，接美術後替換 background-image） */
+.scene-level1 .level-bg { background: radial-gradient(circle at 50% 60%, #3a352b, #17150f); }
+.scene-level2 .level-bg { background: radial-gradient(circle at 50% 50%, #2f3a2c, #14170f); }
+.scene-level3 .level-bg { background: radial-gradient(circle at 50% 50%, #26332b, #101711); }
+.scene-level4 .level-bg { background: radial-gradient(circle at 50% 45%, #33302a, #14120d); }
+.scene-level5 .level-bg { background: radial-gradient(circle at 50% 40%, #2b3a38, #101615); }
+
+/* 彩蛋熱區 */
+.egg-spot {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: var(--gold-light); background: rgba(201,169,106,0.12);
+  border: 1px solid rgba(201,169,106,0.4); z-index: 2;
+  animation: lantern-swing 3s var(--ease-soft) infinite;
+}
+.egg-spot.found { color: var(--celadon); background: rgba(110,139,122,0.16); animation: none; }
+
+/* 動作列 */
+.level-actions {
+  position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 12px; z-index: 3; text-align: center;
+}
+.level-explore-tip { font-size: var(--fs-note); color: var(--gold-light); letter-spacing: 1px; opacity: .9; }
+.level-begin { background: rgba(243,236,221,0.9); }
+
+/* 殘句展示 */
+.verse-line { font-family: var(--font-title); font-size: 26px; color: var(--celadon-deep); letter-spacing: 4px; text-align: center; margin-bottom: 12px; }
+
+/* ===== result.css — 結局 + 結算 + 通知 ===== */
+
+/* 結局 */
+.scene-ending { background: radial-gradient(circle at 50% 40%, #2b3a38, #0d0c0a 82%); }
+.ending-paper { max-width: 62%; text-align: center; padding: var(--gap-l) 56px;
+  background: var(--paper-panel); border-radius: var(--radius); box-shadow: 0 12px 44px rgba(0,0,0,0.45); }
+.ending-title { font-family: var(--font-title); font-size: var(--fs-title); color: var(--celadon-deep); letter-spacing: 6px; margin-bottom: var(--gap-l); }
+.ending-text { font-size: var(--fs-dialogue); line-height: 2.1; color: var(--ink-black); letter-spacing: 1px; }
+.ending-verse { margin-top: var(--gap-l); font-family: var(--font-title); font-size: 24px; color: var(--gold-light); letter-spacing: 4px; }
+
+/* 結算 */
+.scene-result { background: radial-gradient(circle at 50% 40%, #26221b, #0d0c0a 82%); overflow: auto; }
+.result-scroll { width: 78%; max-width: 860px; max-height: 92vh; overflow: auto; text-align: center;
+  background: var(--paper-panel); border-radius: var(--radius); padding: var(--gap-l) 48px; box-shadow: 0 12px 44px rgba(0,0,0,0.5); }
+.result-head { font-family: var(--font-title); font-size: 34px; color: var(--ink-black); letter-spacing: 6px; }
+.result-title { margin-top: 8px; font-size: var(--fs-body); color: var(--ink-soft); }
+.result-title b { color: var(--seal-red); font-size: var(--fs-h2); letter-spacing: 3px; }
+.result-grid { display: flex; justify-content: center; gap: var(--gap-l); flex-wrap: wrap; margin: var(--gap-l) 0; }
+.result-metric { display: flex; flex-direction: column; gap: 6px; }
+.result-metric span { font-size: var(--fs-note); color: var(--ink-soft); }
+.result-metric b { font-family: var(--font-title); font-size: 26px; color: var(--celadon-deep); }
+.result-radar { display: flex; justify-content: center; }
+.result-radar-note { font-size: var(--fs-note); color: var(--ink-soft); margin-top: 4px; }
+.result-ach { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: var(--gap-l) 0; }
+.ach-chip { padding: 6px 12px; background: var(--rice-deep); border: 1px solid rgba(201,169,106,0.5); border-radius: var(--radius); font-size: var(--fs-note); color: var(--ink-black); }
+.result-actions { margin-top: var(--gap-m); }
+
+/* 成就通知 */
+.toast {
+  position: absolute; top: 90px; right: 24px; width: 300px;
+  display: flex; gap: 12px; align-items: center;
+  background: var(--paper-panel); border: 1px solid rgba(201,169,106,0.6);
+  border-radius: var(--radius); padding: 14px 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.toast.leaving { opacity: 0; transform: translateX(20px); transition: all .6s var(--ease-soft); }
+.toast-lotus { font-size: 28px; color: var(--gold-light); }
+.toast-kind { font-size: 12px; color: var(--celadon-deep); letter-spacing: 2px; }
+.toast-title { font-family: var(--font-title); font-size: var(--fs-body); color: var(--ink-black); }
+.toast-desc { font-size: 12px; color: var(--ink-soft); }
+.toast + .toast { top: 190px; }
+
+</style>
+</head>
+<body>
+  <!-- 遊戲以固定 16:9 舞台等比縮放置中 -->
+  <div id="viewport">
+    <div id="game-root">
+      <div id="scene-layer" class="layer"></div>     <!-- 場景 -->
+      <div id="hud-layer" class="layer"></div>       <!-- 四角 HUD -->
+      <div id="dialogue-layer" class="layer"></div>  <!-- 對話 -->
+      <div id="panel-layer" class="layer"></div>     <!-- 背包/謎題/卷軸 -->
+      <div id="overlay-layer" class="layer"></div>   <!-- 過場動畫 -->
+      <div id="toast-layer" class="layer"></div>     <!-- 成就通知 -->
+    </div>
+  </div>
+
+  <!-- 載入畫面 -->
+  <div id="boot-screen">
+    <div class="boot-inner">
+      <div class="boot-ink">蓮</div>
+      <p class="boot-title">蓮境</p>
+      <p class="boot-sub">周敦頤的最後考驗</p>
+      <p class="boot-loading">霧起蓮開，正在入境…</p>
+    </div>
+  </div>
+<script>
+(() => {
+  // js/core/EventBus.js
+  var EventBus = class {
+    constructor() {
+      this._map = /* @__PURE__ */ new Map();
+    }
+    on(type, handler) {
+      if (!this._map.has(type)) this._map.set(type, /* @__PURE__ */ new Set());
+      this._map.get(type).add(handler);
+      return () => this.off(type, handler);
+    }
+    once(type, handler) {
+      const wrap = (payload) => {
+        this.off(type, wrap);
+        handler(payload);
+      };
+      return this.on(type, wrap);
+    }
+    off(type, handler) {
+      const set = this._map.get(type);
+      if (set) set.delete(handler);
+    }
+    emit(type, payload) {
+      const set = this._map.get(type);
+      if (!set) return;
+      [...set].forEach((h) => {
+        try {
+          h(payload);
+        } catch (e) {
+          console.error(`[EventBus] handler error for "${type}":`, e);
+        }
+      });
+    }
+    clear() {
+      this._map.clear();
+    }
+  };
+  var bus = new EventBus();
+
+  // js/core/Game.js
+  var GameState = Object.freeze({
+    BOOT: "boot",
+    OPENING: "opening",
+    TUTORIAL: "tutorial",
+    PLAYING: "playing",
+    ENDING: "ending",
+    RESULT: "result"
+  });
+  var SCENE_FLOW = [
+    "opening",
+    "tutorial",
+    "level1",
+    "level2",
+    "level3",
+    "level4",
+    "level5",
+    "ending",
+    "result"
+  ];
+  var Game = class {
+    constructor({ sceneManager, saveManager } = {}) {
+      this.state = GameState.BOOT;
+      this.sceneManager = sceneManager || null;
+      this.saveManager = saveManager || null;
+      this.save = null;
+    }
+    /** 啟動：載入存檔，決定進入點 */
+    async start() {
+      this.save = this.saveManager ? this.saveManager.load() : null;
+      const resume = this.save && this.save.progress && this.save.progress.currentScene && this.save.progress.currentScene !== "opening";
+      const entry = resume ? this.save.progress.currentScene : "opening";
+      bus.emit("game:start", { resume: !!resume, entry });
+      await this.goScene(entry);
+    }
+    /** 切換場景（透過 SceneManager；未註冊真實場景者安全降級為佔位） */
+    async goScene(sceneId) {
+      this._syncStateByScene(sceneId);
+      let handled = false;
+      if (this.sceneManager && typeof this.sceneManager.go === "function") {
+        handled = await this.sceneManager.go(sceneId);
+      }
+      if (!handled) {
+        this._renderPlaceholder(sceneId);
+      }
+      bus.emit("scene:enter", { scene: sceneId });
+    }
+    /** 提供給場景的共用上下文 */
+    getSceneContext() {
+      const s = this.systems || {};
+      return {
+        game: this,
+        save: this.save,
+        bus,
+        dialogue: s.dialogue,
+        puzzle: s.puzzle,
+        scroll: s.scroll
+      };
+    }
+    /** 前往流程中的下一個場景 */
+    async next() {
+      const cur = this.sceneManager?.current || this.save?.progress?.currentScene || "opening";
+      const idx = SCENE_FLOW.indexOf(cur);
+      const nextId = SCENE_FLOW[Math.min(idx + 1, SCENE_FLOW.length - 1)];
+      await this.goScene(nextId);
+    }
+    _syncStateByScene(sceneId) {
+      if (sceneId === "opening") this.state = GameState.OPENING;
+      else if (sceneId === "tutorial") this.state = GameState.TUTORIAL;
+      else if (sceneId.startsWith("level")) this.state = GameState.PLAYING;
+      else if (sceneId === "ending") this.state = GameState.ENDING;
+      else if (sceneId === "result") this.state = GameState.RESULT;
+    }
+    _renderPlaceholder(sceneId) {
+      const layer = document.getElementById("scene-layer");
+      if (!layer) return;
+      const names = {
+        opening: "開場・墨字暈開",
+        tutorial: "教學・掃葉人",
+        level1: "第一關・淤泥門",
+        level2: "第二關・三花圃",
+        level3: "第三關・通直廊",
+        level4: "第四關・濂溪堂",
+        level5: "第五關・蓮心堂",
+        ending: "Final Ending",
+        result: "結算・長卷"
+      };
+      layer.innerHTML = `<div class="scene"><span class="scene-placeholder">〔${names[sceneId] || sceneId}〕</span></div>`;
+    }
+  };
+
+  // js/core/SceneManager.js
+  var SceneManager = class {
+    /**
+     * @param {object} opts
+     * @param {object} opts.ctxProvider 提供 enter 所需 ctx 的物件（通常是 Game）
+     */
+    constructor({ ctxProvider } = {}) {
+      this.ctxProvider = ctxProvider;
+      this.registry = /* @__PURE__ */ new Map();
+      this.current = null;
+      this._instance = null;
+      this._transitioning = false;
+      this.layers = {
+        scene: document.getElementById("scene-layer"),
+        hud: document.getElementById("hud-layer"),
+        dialogue: document.getElementById("dialogue-layer"),
+        panel: document.getElementById("panel-layer"),
+        overlay: document.getElementById("overlay-layer"),
+        toast: document.getElementById("toast-layer")
+      };
+    }
+    /** 註冊場景工廠 */
+    register(id, factory) {
+      this.registry.set(id, factory);
+      return this;
+    }
+    /** 是否已註冊真實場景（未註冊者交回 Game 佔位） */
+    has(id) {
+      return this.registry.has(id);
+    }
+    /** 切換場景（含墨跡過場） */
+    async go(id) {
+      if (this._transitioning) return;
+      if (!this.registry.has(id)) {
+        this.current = id;
+        return false;
+      }
+      this._transitioning = true;
+      bus.emit("scene:leave", { from: this.current, to: id });
+      await this._inkOut();
+      if (this._instance) await this._instance.exit();
+      const scene = this.registry.get(id)();
+      this._instance = scene;
+      this.current = id;
+      const ctx = this._buildCtx();
+      await scene.mount(ctx);
+      await this._inkIn();
+      this._transitioning = false;
+      if (typeof scene.onEnter === "function") scene.onEnter(ctx);
+      return true;
+    }
+    _buildCtx() {
+      const base = this.ctxProvider?.getSceneContext?.() || {};
+      return { ...base, bus, layers: this.layers, manager: this };
+    }
+    /** 墨跡過場：遮罩淡入 */
+    _inkOut() {
+      return new Promise((resolve) => {
+        const ov = this.layers.overlay;
+        ov.innerHTML = `<div class="ink-transition"></div>`;
+        const el = ov.firstChild;
+        requestAnimationFrame(() => el.classList.add("active"));
+        setTimeout(resolve, 700);
+      });
+    }
+    /** 墨跡過場：遮罩淡出並清除 */
+    _inkIn() {
+      return new Promise((resolve) => {
+        const ov = this.layers.overlay;
+        const el = ov.querySelector(".ink-transition");
+        if (!el) {
+          resolve();
+          return;
+        }
+        el.classList.remove("active");
+        el.classList.add("leaving");
+        setTimeout(() => {
+          ov.innerHTML = "";
+          resolve();
+        }, 700);
+      });
+    }
+  };
+
+  // js/systems/SaveManager.js
+  var SAVE_KEY = "lianjing_save_v1";
+  var DEFAULT_SAVE = () => ({
+    version: 1,
+    progress: { currentScene: "opening", clearedLevels: [] },
+    inventory: [],
+    collectibles: [],
+    documents: [],
+    easterEggs: [],
+    achievements: [],
+    time: { total: 0, perLevel: {} },
+    abilities: { retrieve: 0, compare: 0, infer: 0, author: 0, synthesis: 0 },
+    flags: { insightTriggered: false, noHint3Used: true },
+    lastPosition: { scene: "opening", x: 0.5, y: 0.5 },
+    settings: { bgmVolume: 0.7, sfxVolume: 0.8, textMode: "vertical" }
+  });
+  var SaveManager = class {
+    constructor() {
+      this.data = null;
+      this._bindAutoSave();
+    }
+    load() {
+      try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (!raw) {
+          this.data = DEFAULT_SAVE();
+          return this.data;
+        }
+        const parsed = JSON.parse(raw);
+        this.data = this._migrate(parsed);
+        return this.data;
+      } catch (e) {
+        console.warn("[SaveManager] 讀檔失敗，重建預設存檔", e);
+        this.data = DEFAULT_SAVE();
+        return this.data;
+      }
+    }
+    /** 淺合併 patch，避免整包覆蓋 */
+    save(patch = {}) {
+      if (!this.data) this.load();
+      this.data = { ...this.data, ...patch };
+      try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(this.data));
+        bus.emit("save:written", { key: SAVE_KEY });
+      } catch (e) {
+        console.error("[SaveManager] 寫檔失敗", e);
+      }
+      return this.data;
+    }
+    has() {
+      return !!localStorage.getItem(SAVE_KEY);
+    }
+    reset() {
+      localStorage.removeItem(SAVE_KEY);
+      this.data = DEFAULT_SAVE();
+      bus.emit("save:reset", {});
+      return this.data;
+    }
+    _migrate(old) {
+      const base = DEFAULT_SAVE();
+      return { ...base, ...old, version: base.version };
+    }
+    /** 監聽關鍵事件自動存檔（單向存檔流） */
+    _bindAutoSave() {
+      const persist = () => this.save({});
+      bus.on("scene:enter", ({ scene }) => {
+        if (!this.data) this.load();
+        this.data.progress.currentScene = scene;
+        this.data.lastPosition.scene = scene;
+        persist();
+      });
+      bus.on("level:cleared", ({ level }) => {
+        if (!this.data) this.load();
+        if (level && !this.data.progress.clearedLevels.includes(level)) {
+          this.data.progress.clearedLevels.push(level);
+        }
+        persist();
+      });
+      bus.on("item:pickup", ({ id }) => {
+        if (id && !this.data.inventory.includes(id)) this.data.inventory.push(id);
+        persist();
+      });
+      bus.on("achievement:unlock", ({ id }) => {
+        if (id && !this.data.achievements.includes(id)) this.data.achievements.push(id);
+        persist();
+      });
+      bus.on("egg:unlock", ({ id }) => {
+        if (id && !this.data.easterEggs.includes(id)) this.data.easterEggs.push(id);
+        persist();
+      });
+      bus.on("collectible:get", ({ id }) => {
+        if (id && !this.data.collectibles.includes(id)) this.data.collectibles.push(id);
+        persist();
+      });
+      bus.on("flag:set", ({ key, value }) => {
+        if (!this.data.flags) this.data.flags = {};
+        this.data.flags[key] = value;
+        persist();
+      });
+      bus.on("hint:used", ({ stage }) => {
+        if (stage >= 3) {
+          this.data.flags.noHint3Used = false;
+          persist();
+        }
+      });
+    }
+  };
+
+  // js/systems/Dialogue.js
+  var Dialogue = class {
+    constructor({ layer } = {}) {
+      this.layer = layer || document.getElementById("dialogue-layer");
+      this.box = null;
+      this._typing = false;
+    }
+    /** 播放一組對白（陣列），逐句點擊前進，結束後 resolve */
+    play({ npc = "", lines = [] } = {}) {
+      return new Promise((resolve) => {
+        let i = 0;
+        this._ensureBox();
+        const showLine = () => {
+          if (i >= lines.length) {
+            this.close();
+            resolve();
+            return;
+          }
+          this._type(npc, lines[i]);
+          i++;
+        };
+        this._advance = () => {
+          if (this._typing) {
+            this._finishTyping();
+          } else {
+            showLine();
+          }
+        };
+        this.box.onclick = this._advance;
+        showLine();
+      });
+    }
+    /** 呈現分支提問，回傳所選 option 物件 */
+    ask({ npc = "", prompt = "", options = [] } = {}) {
+      return new Promise((resolve) => {
+        this._ensureBox();
+        this.box.onclick = null;
+        this.box.innerHTML = `
+        <p class="dlg-npc">${npc}</p>
+        <p class="dlg-text">${prompt}</p>
+        <ul class="dlg-options">
+          ${options.map((o, idx) => `<li class="dlg-opt" data-i="${idx}" role="button" tabindex="0">${o.text}</li>`).join("")}
+        </ul>`;
+        this.box.querySelectorAll(".dlg-opt").forEach((li) => {
+          const pick = () => resolve(options[+li.dataset.i]);
+          li.addEventListener("click", pick);
+          li.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              pick();
+            }
+          });
+        });
+      });
+    }
+    /** 顯示單句回饋（如選項後的評語），點擊關閉 */
+    say({ npc = "", line = "" } = {}) {
+      return this.play({ npc, lines: [line] });
+    }
+    _ensureBox() {
+      if (this.box) return;
+      this.box = document.createElement("div");
+      this.box.className = "dialogue-box";
+      this.layer.appendChild(this.box);
+    }
+    _type(npc, text) {
+      this._typing = true;
+      this._fullText = text;
+      this.box.innerHTML = `<p class="dlg-npc">${npc}</p><p class="dlg-text"></p><span class="dlg-more">▾</span>`;
+      const el = this.box.querySelector(".dlg-text");
+      let n = 0;
+      clearInterval(this._timer);
+      this._timer = setInterval(() => {
+        el.textContent = text.slice(0, ++n);
+        if (n >= text.length) {
+          clearInterval(this._timer);
+          this._typing = false;
+        }
+      }, 34);
+    }
+    _finishTyping() {
+      clearInterval(this._timer);
+      if (this.box) {
+        const el = this.box.querySelector(".dlg-text");
+        if (el) el.textContent = this._fullText;
+      }
+      this._typing = false;
+    }
+    close() {
+      clearInterval(this._timer);
+      if (this.box) {
+        this.box.remove();
+        this.box = null;
+      }
+    }
+  };
+
+  // js/puzzles/PuzzleBase.js
+  var PuzzleBase = class {
+    constructor(def = {}) {
+      this.def = def;
+      this.id = def.id;
+      this.type = def.type;
+      this.container = null;
+      this.ctx = null;
+      this._resolve = null;
+    }
+    /** 掛載並回傳 Promise，解開時 resolve */
+    run(container, ctx) {
+      this.container = container;
+      this.ctx = ctx;
+      return new Promise((res) => {
+        this._resolve = res;
+        this.render();
+      });
+    }
+    render() {
+      this.container.innerHTML = `<p>${this.def.prompt || ""}</p>`;
+    }
+    /** 子類呼叫：判定成功 */
+    _succeed() {
+      bus.emit("puzzle:solved", { id: this.id, type: this.type });
+      if (this._resolve) this._resolve({ ok: true });
+    }
+    /** 子類呼叫：柔性失敗（水波回饋，不懲罰） */
+    _softFail(hostEl) {
+      bus.emit("puzzle:fail", { id: this.id });
+      const host = hostEl || this.container;
+      const r = document.createElement("span");
+      r.className = "fx-ripple";
+      const rect = host.getBoundingClientRect();
+      r.style.left = "50%";
+      r.style.top = "50%";
+      r.style.marginLeft = "-40px";
+      r.style.marginTop = "-40px";
+      host.appendChild(r);
+      setTimeout(() => r.remove(), 800);
+    }
+    $(sel) {
+      return this.container.querySelector(sel);
+    }
+    $$(sel) {
+      return [...this.container.querySelectorAll(sel)];
+    }
+  };
+
+  // js/puzzles/SequencePuzzle.js
+  var SequencePuzzle = class extends PuzzleBase {
+    render() {
+      const isSeg = this.def.mode === "segments";
+      const pool = isSeg ? this.def.segments.map((s) => ({ key: s.order, label: s.label })) : this.def.shuffled.map((c, i) => ({ key: c + "_" + i, label: c }));
+      this.picked = [];
+      this.answer = isSeg ? this.def.answer : this.def.answer;
+      this.isSeg = isSeg;
+      this.container.innerHTML = `
+      <p class="pz-prompt">${this.def.prompt}</p>
+      <div class="pz-slots" id="pzSlots"></div>
+      <div class="pz-pool">${pool.map((p) => `<span class="pz-chip ${isSeg ? "seg" : ""}" data-key="${p.key}">${p.label}</span>`).join("")}</div>
+      <p class="pz-tip">依正確順序點選；點已選的可取消。</p>`;
+      this.$$(".pz-chip").forEach((chip) => chip.addEventListener("click", () => this._pick(chip)));
+    }
+    _pick(chip) {
+      if (chip.classList.contains("used")) return;
+      chip.classList.add("used");
+      this.picked.push(chip);
+      this._renderSlots();
+      this._check();
+    }
+    _renderSlots() {
+      const slots = this.$("#pzSlots");
+      slots.innerHTML = this.picked.map((c, i) => `<span class="pz-slot" data-idx="${i}">${c.textContent}</span>`).join("");
+      slots.querySelectorAll(".pz-slot").forEach((s) => s.addEventListener("click", () => {
+        const idx = +s.dataset.idx;
+        const chip = this.picked.splice(idx, 1)[0];
+        chip.classList.remove("used");
+        this._renderSlots();
+      }));
+    }
+    _check() {
+      if (this.picked.length !== this.answer.length) return;
+      let ok;
+      if (this.isSeg) {
+        const orders = this.picked.map((c) => +c.dataset.key);
+        ok = orders.every((o, i) => o === this.answer[i]);
+      } else {
+        const chars = this.picked.map((c) => c.textContent).join("");
+        ok = chars === this.def.answer.join("");
+      }
+      if (ok) {
+        this.container.classList.add("pz-done");
+        setTimeout(() => this._succeed(), 400);
+      } else {
+        this._softFail();
+        this.picked.forEach((c) => c.classList.remove("used"));
+        this.picked = [];
+        this._renderSlots();
+      }
+    }
+  };
+
+  // js/puzzles/MatchPuzzle.js
+  var MatchPuzzle = class extends PuzzleBase {
+    render() {
+      const pairs = this.def.pairs;
+      const lefts = pairs.map((p) => p.left);
+      const rights = [...pairs.map((p) => p.right), ...this.def.distractors || []].sort(() => Math.random() - 0.5);
+      this.map = new Map(pairs.map((p) => [p.left, p.right]));
+      this.matched = /* @__PURE__ */ new Set();
+      this.sel = null;
+      this.container.innerHTML = `
+      <p class="pz-prompt">${this.def.prompt}</p>
+      <div class="pz-match">
+        <ul class="pz-col left">${lefts.map((l) => `<li class="pz-item" data-side="l" data-v="${l}">${l}</li>`).join("")}</ul>
+        <ul class="pz-col right">${rights.map((r) => `<li class="pz-item" data-side="r" data-v="${r}">${r}</li>`).join("")}</ul>
+      </div>`;
+      this.$$(".pz-item").forEach((it) => it.addEventListener("click", () => this._tap(it)));
+    }
+    _tap(it) {
+      if (it.classList.contains("matched")) return;
+      if (it.dataset.side === "l") {
+        this.$$(".pz-item.left, .left .pz-item").forEach((x) => x.classList.remove("sel"));
+        this.$$('[data-side="l"]').forEach((x) => x.classList.remove("sel"));
+        it.classList.add("sel");
+        this.sel = it;
+      } else if (this.sel) {
+        const left = this.sel.dataset.v, right = it.dataset.v;
+        if (this.map.get(left) === right) {
+          it.classList.add("matched");
+          this.sel.classList.add("matched");
+          this.sel.classList.remove("sel");
+          this.matched.add(left);
+          this.sel = null;
+          if (this.matched.size === this.map.size) {
+            this.container.classList.add("pz-done");
+            setTimeout(() => this._succeed(), 400);
+          }
+        } else {
+          this._softFail(it);
+          it.classList.add("wrong");
+          setTimeout(() => it.classList.remove("wrong"), 500);
+        }
+      }
+    }
+  };
+
+  // js/puzzles/FilterPuzzle.js
+  var FilterPuzzle = class extends PuzzleBase {
+    render() {
+      this.answer = new Set(this.def.answer);
+      this.removed = /* @__PURE__ */ new Set();
+      this.container.innerHTML = `
+      <p class="pz-prompt">${this.def.prompt}</p>
+      <ul class="pz-filter">
+        ${this.def.options.map((o) => `<li class="pz-flower" data-id="${o.id}" data-keep="${o.keep}" role="button" tabindex="0">${o.label}</li>`).join("")}
+      </ul>
+      <p class="pz-tip">點選「不符君子」者將其淘汰，只留正解。</p>`;
+      this.$$(".pz-flower").forEach((el) => {
+        const act = () => this._toggle(el);
+        el.addEventListener("click", act);
+        el.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            act();
+          }
+        });
+      });
+    }
+    _toggle(el) {
+      const id = el.dataset.id;
+      const keep = el.dataset.keep === "true";
+      if (keep) {
+        this._softFail(el);
+        el.classList.add("wrong");
+        setTimeout(() => el.classList.remove("wrong"), 500);
+        return;
+      }
+      el.classList.toggle("removed");
+      if (el.classList.contains("removed")) this.removed.add(id);
+      else this.removed.delete(id);
+      this._check();
+    }
+    _check() {
+      const toRemove = this.def.options.filter((o) => !o.keep).map((o) => o.id);
+      const done = toRemove.every((id) => this.removed.has(id));
+      if (done) {
+        this.container.classList.add("pz-done");
+        setTimeout(() => this._succeed(), 400);
+      }
+    }
+  };
+
+  // js/puzzles/RevealPuzzle.js
+  var RevealPuzzle = class extends PuzzleBase {
+    render() {
+      const spots = this.def.spots || 3;
+      this.total = spots;
+      this.cleared = 0;
+      this.container.innerHTML = `
+      <p class="pz-prompt">${this.def.prompt}</p>
+      <div class="pz-reveal">
+        <div class="reveal-wall">
+          <span class="reveal-target">${this.def.target}</span>
+          ${Array.from({ length: spots }).map((_, i) => `<span class="mud-spot" data-i="${i}" style="left:${8 + i * (84 / spots)}%"></span>`).join("")}
+        </div>
+        <p class="pz-tip">點背包取「清水」後，擦去 ${spots} 處泥漬（此處直接點泥漬模擬）。</p>
+      </div>`;
+      this.$$(".mud-spot").forEach((sp) => sp.addEventListener("click", () => this._wipe(sp)));
+    }
+    _wipe(sp) {
+      if (sp.classList.contains("wiped")) return;
+      sp.classList.add("wiped");
+      this.cleared++;
+      if (this.cleared >= this.total) {
+        this.$(".reveal-target").classList.add("fx-ink-reveal", "shown");
+        this.container.classList.add("pz-done");
+        setTimeout(() => this._succeed(), 900);
+      }
+    }
+  };
+
+  // js/puzzles/MechanismPuzzle.js
+  var MechanismPuzzle = class extends PuzzleBase {
+    render() {
+      const steps = this.def.steps || 3;
+      this.steps = steps;
+      this.pos = 0;
+      const kind = this.def.kind || "water";
+      const knobLabel = kind === "light" ? "旋轉花窗" : kind === "water" ? "撥動水閘" : "推動機關";
+      this.container.innerHTML = `
+      <p class="pz-prompt">${this.def.prompt}</p>
+      <div class="pz-mech kind-${kind}">
+        <div class="mech-stage">
+          <span class="mech-target">${this.def.target}</span>
+          <div class="mech-gauge"><div class="mech-fill" style="width:0%"></div></div>
+        </div>
+        <div class="mech-knob" role="button" tabindex="0">${knobLabel}（0/${steps}）</div>
+      </div>`;
+      const knob = this.$(".mech-knob");
+      const act = () => this._turn(knob);
+      knob.addEventListener("click", act);
+      knob.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          act();
+        }
+      });
+    }
+    _turn(knob) {
+      this.pos = Math.min(this.pos + 1, this.steps);
+      const pct = Math.round(this.pos / this.steps * 100);
+      this.$(".mech-fill").style.width = pct + "%";
+      knob.textContent = knob.textContent.replace(/（.*）/, `（${this.pos}/${this.steps}）`);
+      if (this.pos >= this.steps) {
+        this.$(".mech-target").classList.add("fx-ink-reveal", "shown");
+        this.container.classList.add("pz-done");
+        setTimeout(() => this._succeed(), 700);
+      }
+    }
+  };
+
+  // js/data/dialogues.js
+  var DIALOGUES = {
+    tutorial: {
+      npc: "掃葉人",
+      lines: [
+        "客官迷路了？此處是濂溪書院，如今只剩霧與蓮。",
+        "這書院裡，藏著一篇散落的文章——〈愛蓮說〉。",
+        "在這裡，記住三件事：先「看」，再「想」，最後才「動手」。",
+        "泥裡藏字，光看是看不清的；不懂時，點右下的燈籠，我便給你指點。",
+        "去吧。第一道門在前方，門前有一池乾涸的殘荷。"
+      ]
+    },
+    level1_intro: { npc: "掃葉人", lines: [
+      "這淤泥門，泥漿封了牆上的字。",
+      "蓮能出淤泥而不染——你可知，那「不染」二字，要先洗去泥，才看得見？"
+    ] },
+    level1_clear: { npc: "掃葉人", lines: [
+      "好！「出淤泥而不染」——你讀懂了蓮的第一重風骨：潔身自愛。",
+      "鏽鎖化蓮，石門開了。往前去罷。"
+    ] },
+    level2_intro: { npc: "花婢・阿蕖", lines: [
+      "客官來看花麼？這裡有菊、有牡丹、有蓮。",
+      "都說花好，可到底哪裡好？您得一朵朵看仔細，再說誰是「君子」。"
+    ] },
+    level2_clear: { npc: "花婢・阿蕖", lines: [
+      "菊避世、牡丹逐貴、唯蓮不媚不妖——您選對了！",
+      "「濯清漣而不妖」，這才是君子的清高呀。"
+    ] },
+    level3_intro: { npc: "竹隱先生", lines: [
+      "（撫琴）竹之可貴，在中空而有節，在直而不曲。",
+      "蓮亦如是——中通外直，不蔓不枝。這條路，須先「取直」才通。"
+    ] },
+    level3_clear: { npc: "竹隱先生", lines: [
+      "光穿花窗成字，竹影補全——你推得出蓮的第三重：虛心而正直，不攀附。",
+      "迴廊貫通了，先生候你於堂中。"
+    ] },
+    level4_intro: { npc: "周敦頤（心念）", lines: [
+      "（書香中現身）你，便是那個還字之人？",
+      "香遠益清，亭亭淨植，可遠觀而不可褻玩焉——這幾句，你且先歸位。",
+      "歸位之後，我有一問，問的不是字，是「言外之意」。"
+    ] },
+    level4_insight_q: {
+      npc: "周敦頤（心念）",
+      prompt: "「噫！菊之愛，陶後鮮有聞。蓮之愛，同予者何人？牡丹之愛，宜乎眾矣！」——我問你，這一聲嘆息，究竟嘆的是什麼？",
+      options: [
+        {
+          id: "a",
+          text: "嘆愛花的人數多寡而已。",
+          insight: false,
+          feedback: "（周敦頤搖首）若只是數人數，何須一聲長嘆？再想想。"
+        },
+        {
+          id: "b",
+          text: "嘆懂君子之道的人太少，而追逐富貴的人太多。",
+          insight: true,
+          feedback: "（周敦頤頷首）正是。字面問人，實則問——這世上，還有誰願做那出淤泥而不染的君子？"
+        },
+        {
+          id: "c",
+          text: "嘆牡丹比蓮花更受歡迎，心有不甘。",
+          insight: false,
+          feedback: "（周敦頤淡笑）我非爭一時之寵，你尚未讀到我心底。再想想。"
+        }
+      ]
+    },
+    level4_clear: { npc: "周敦頤（心念）", lines: [
+      "你聽見了那聲嘆息背後的心——難得。",
+      "古琴起，隨我入蓮心堂，還這篇文章一個完整。"
+    ] },
+    level5_intro: { npc: "周敦頤（心念）", lines: [
+      "五句已在你手中。將它們歸位，也將它們——歸心。",
+      "記住次序：先寫蓮之形神，再論三花人格，最後，才是那一聲「噫」。"
+    ] },
+    level5_clear: { npc: "周敦頤（心念）", lines: [
+      "全文重光了。一百一十九字，字字珠璣。",
+      "你可知，我寫此文，不為蓮，而為——願世間多一個君子。"
+    ] }
+  };
+  function getDialogue(key) {
+    return DIALOGUES[key] || null;
+  }
+
+  // js/systems/PuzzleEngine.js
+  var MAP = {
+    sequence: SequencePuzzle,
+    match: MatchPuzzle,
+    filter: FilterPuzzle,
+    reveal: RevealPuzzle,
+    mechanism: MechanismPuzzle
+  };
+  var PuzzleEngine = class {
+    constructor({ dialogue } = {}) {
+      this.dialogue = dialogue;
+    }
+    /** 執行單一謎題定義，回傳 Promise（解開後 resolve，insight 型另回傳 {insight}） */
+    async run(def, container, ctx) {
+      if (def.type === "insight") return this._runInsight(def, ctx);
+      const Cls = MAP[def.type];
+      if (!Cls) {
+        console.warn("未知謎題型別", def.type);
+        return { ok: true };
+      }
+      const p = new Cls(def);
+      return p.run(container, ctx);
+    }
+    /** insight：以對話分支呈現，選出言外之意 */
+    async _runInsight(def, ctx) {
+      const d = getDialogue(def.dialogueKey);
+      if (!d || !this.dialogue) return { ok: true, insight: false };
+      let picked = null;
+      while (!picked || !picked.insight) {
+        picked = await this.dialogue.ask({ npc: d.npc, prompt: d.prompt, options: d.options });
+        await this.dialogue.say({ npc: d.npc, line: picked.feedback });
+        if (!picked.insight) {
+        }
+      }
+      return { ok: true, insight: true };
+    }
+  };
+
+  // js/data/levels.js
+  var LEVELS = [
+    {
+      id: "level1",
+      name: "淤泥門",
+      ability: "retrieve",
+      abilityName: "資訊擷取",
+      bgm: "bgm_lv1",
+      intro: "level1_intro",
+      clear: "level1_clear",
+      verse: "verse_1",
+      achievement: "ach_2",
+      puzzles: [
+        {
+          type: "reveal",
+          id: "l1_reveal",
+          prompt: "牆面被淤泥覆蓋，點取「清水」擦拭三處，讓字浮現。",
+          target: "出淤泥而不染",
+          spots: 3
+        },
+        {
+          type: "sequence",
+          id: "l1_seq",
+          prompt: "顯出的字被泥漬打亂，請依語意排回正確順序。",
+          answer: ["出", "淤", "泥", "而", "不", "染"],
+          shuffled: ["泥", "淤", "出", "染", "不", "而"]
+        },
+        {
+          type: "match",
+          id: "l1_match",
+          prompt: "將「出淤泥而不染」連到它象徵的君子品德。",
+          pairs: [{ left: "出淤泥而不染", right: "潔身自愛，不同流合汙" }],
+          distractors: ["隨波逐流", "攀附權貴"]
+        }
+      ],
+      hints: [
+        "這裡的「髒」，正是遮住答案的東西。",
+        "牆上的泥需要被洗去——先找到能盛水的東西（清水）。",
+        "點背包的「清水」，再點牆面三處泥漬，字會浮現；接著把六字排成「出淤泥而不染」，最後連向「潔身自愛」。"
+      ]
+    },
+    {
+      id: "level2",
+      name: "三花圃",
+      ability: "compare",
+      abilityName: "比較分析",
+      bgm: "bgm_lv2",
+      intro: "level2_intro",
+      clear: "level2_clear",
+      verse: "verse_2",
+      achievement: "ach_3",
+      puzzles: [
+        {
+          type: "filter",
+          id: "l2_filter",
+          prompt: "君子之花評選：篩掉不符「不媚俗、不妖艷」者，留下君子之花。",
+          options: [{ id: "ju", label: "菊（避世）", keep: false }, { id: "mudan", label: "牡丹（逐貴）", keep: false }, { id: "lian", label: "蓮（不染不妖）", keep: true }],
+          answer: ["lian"]
+        },
+        {
+          type: "match",
+          id: "l2_match",
+          prompt: "將三花連到它們所象徵的人格。",
+          pairs: [{ left: "菊", right: "隱逸者" }, { left: "牡丹", right: "富貴者" }, { left: "蓮", right: "君子" }]
+        },
+        {
+          type: "mechanism",
+          id: "l2_mech",
+          prompt: "撥動水閘調整水位，讓「濯清漣而不妖」的字浮到正確位置。",
+          target: "濯清漣而不妖",
+          kind: "water",
+          steps: 3
+        }
+      ],
+      hints: [
+        "三朵花，各有各的「個性」，先分清誰避世、誰逐貴、誰不染。",
+        "君子之花，既不像菊避世，也不像牡丹逐貴——它「不媚不妖」。",
+        "留下「蓮」；再把菊→隱逸者、牡丹→富貴者、蓮→君子；最後撥水閘三次讓字浮出。"
+      ]
+    },
+    {
+      id: "level3",
+      name: "通直廊",
+      ability: "infer",
+      abilityName: "推論判斷",
+      bgm: "bgm_lv3",
+      intro: "level3_intro",
+      clear: "level3_clear",
+      verse: "verse_3",
+      achievement: "ach_4",
+      puzzles: [
+        {
+          type: "mechanism",
+          id: "l3_light",
+          prompt: "旋轉三扇花窗，讓陽光在地面投出「中通外直」四字。",
+          target: "中通外直",
+          kind: "light",
+          steps: 3
+        },
+        {
+          type: "sequence",
+          id: "l3_seq",
+          prompt: "竹節上「不○不○」的字缺了，補成對稱句。",
+          answer: ["不", "蔓", "不", "枝"],
+          shuffled: ["枝", "不", "蔓", "不"]
+        },
+        {
+          type: "match",
+          id: "l3_match",
+          prompt: "推想竹與蓮的特質，連到對應君子品德。",
+          pairs: [{ left: "中通", right: "虛心" }, { left: "外直", right: "正直" }, { left: "不蔓不枝", right: "不攀附" }]
+        }
+      ],
+      hints: [
+        "路不通，是因為它還沒「取直」。",
+        "光穿過花窗會成字；竹節上有缺字要補成「不○不○」。",
+        "轉三扇花窗成「中通外直」；補「不蔓不枝」；再連中通→虛心、外直→正直、不蔓不枝→不攀附。"
+      ]
+    },
+    {
+      id: "level4",
+      name: "濂溪堂",
+      ability: "author",
+      abilityName: "作者觀點",
+      bgm: "bgm_lv4",
+      intro: "level4_intro",
+      clear: "level4_clear",
+      verse: "verse_4",
+      achievement: "ach_5",
+      puzzles: [
+        {
+          type: "match",
+          id: "l4_match",
+          prompt: "整理文稿，將末段三句連到象徵的君子德行。",
+          pairs: [{ left: "香遠益清", right: "德性芬芳遠播" }, { left: "亭亭淨植", right: "人格高潔令人敬仰" }, { left: "可遠觀而不可褻玩", right: "使人敬重而不敢輕慢" }]
+        },
+        {
+          type: "reveal",
+          id: "l4_reveal",
+          prompt: "書桌末句被墨團覆蓋，以清水擦出「可遠觀而不可褻玩焉」。",
+          target: "可遠觀而不可褻玩焉",
+          spots: 2
+        },
+        {
+          type: "insight",
+          id: "l4_insight",
+          prompt: "回答周敦頤關於「言外之意」的提問。",
+          dialogueKey: "level4_insight_q"
+        }
+      ],
+      hints: [
+        "先生的話，字面之外，還藏著一聲嘆息。",
+        "他問「同予者何人」，不是真在問人數，是在問——還有誰懂？",
+        "選「嘆懂君子之道的人太少、追逐富貴的人太多」，即是言外之意。"
+      ]
+    },
+    {
+      id: "level5",
+      name: "蓮心堂",
+      ability: "synthesis",
+      abilityName: "統整反思",
+      bgm: "bgm_lv5",
+      intro: "level5_intro",
+      clear: "level5_clear",
+      verse: "verse_5",
+      achievement: "ach_6",
+      puzzles: [
+        {
+          type: "sequence",
+          id: "l5_synth",
+          prompt: "將全文四段依「描寫→評論→感嘆」正確語序嵌入石碑。",
+          mode: "segments",
+          answer: [1, 2, 3, 4],
+          segments: [
+            { order: 3, label: "菊，花之隱逸者也；牡丹，花之富貴者也；蓮，花之君子者也" },
+            { order: 1, label: "予獨愛蓮之出淤泥而不染，濯清漣而不妖" },
+            { order: 4, label: "噫！菊之愛，陶後鮮有聞。蓮之愛，同予者何人？牡丹之愛，宜乎眾矣" },
+            { order: 2, label: "中通外直，不蔓不枝；香遠益清，亭亭淨植，可遠觀而不可褻玩焉" }
+          ]
+        },
+        {
+          type: "filter",
+          id: "l5_final",
+          prompt: "終驗：三象之中，確認何者為君子之定位。",
+          options: [{ id: "ju", label: "菊", keep: false }, { id: "mudan", label: "牡丹", keep: false }, { id: "lian", label: "蓮", keep: true }],
+          answer: ["lian"]
+        },
+        {
+          type: "mechanism",
+          id: "l5_relight",
+          prompt: "撥動池心水閘，清水漫過石碑，全文重光。",
+          target: "愛蓮說",
+          kind: "water",
+          steps: 1
+        }
+      ],
+      hints: [
+        "文章有它的來去次序：先寫景（蓮之特質），後論人（三花），最後才是那一聲「噫」。",
+        "順序是：描寫蓮 → 評論三花 → 感嘆言外之意。",
+        "依序放：予獨愛蓮… → 中通外直… → 菊花之隱逸者… → 噫！菊之愛…；再確認「蓮」為君子，撥水閘。"
+      ]
+    }
+  ];
+  function getLevel(id) {
+    return LEVELS.find((l) => l.id === id) || null;
+  }
+  var LEVEL_ORDER = LEVELS.map((l) => l.id);
+
+  // js/systems/HintSystem.js
+  var HintSystem = class {
+    constructor({ scroll } = {}) {
+      this.scroll = scroll;
+      this.currentLevel = null;
+      this.usedStage = 0;
+      this.maxStageUsed = 0;
+      this._bind();
+    }
+    _bind() {
+      bus.on("scene:enter", ({ scene }) => {
+        if (scene && scene.startsWith("level")) {
+          this.currentLevel = scene;
+          this.usedStage = 0;
+        }
+      });
+      bus.on("hint:request", ({ stage }) => this.showHint(stage));
+      bus.on("idle:timeout", () => this.showHint(Math.max(1, this.usedStage + 1)));
+    }
+    showHint(stage) {
+      const lv = getLevel(this.currentLevel);
+      if (!lv || !lv.hints) return;
+      const s = Math.min(Math.max(stage, 1), lv.hints.length);
+      this.usedStage = Math.max(this.usedStage, s);
+      this.maxStageUsed = Math.max(this.maxStageUsed, s);
+      bus.emit("hint:used", { level: this.currentLevel, stage: s });
+      const labels = ["模糊提示", "方向提示", "明確提示"];
+      if (this.scroll) {
+        this.scroll.show({ title: `燈籠・${labels[s - 1] || "提示"}`, html: `<p>${lv.hints[s - 1]}</p>` });
+      }
+    }
+  };
+
+  // js/data/config.js
+  var CONFIG = {
+    version: 1,
+    levelSeconds: 480,
+    // 每關倒數（8 分鐘，僅氛圍/成就，不強制失敗）
+    idleHintMs: 18e4,
+    // 閒置 3 分鐘給提示
+    totalTargetSeconds: 2400,
+    // 40 分鐘通關成就門檻
+    audio: { bgm: 0.7, sfx: 0.8 },
+    hintStages: 3
+  };
+
+  // js/systems/Timer.js
+  var Timer = class {
+    constructor({ saveManager } = {}) {
+      this.save = saveManager;
+      this.levelId = null;
+      this.remain = CONFIG.levelSeconds;
+      this.total = this.save?.data?.time?.total || 0;
+      this.idleMs = 0;
+      this._tick = this._tick.bind(this);
+      this._bind();
+    }
+    _bind() {
+      bus.on("scene:enter", ({ scene }) => {
+        if (scene && scene.startsWith("level")) {
+          this.startLevel(scene);
+        } else {
+          this.stop();
+        }
+      });
+      ["puzzle:solved", "puzzle:fail", "hint:request", "item:pickup", "egg:unlock", "puzzle:start"].forEach((ev) => bus.on(ev, () => {
+        this.idleMs = 0;
+      }));
+      document.addEventListener("click", () => {
+        this.idleMs = 0;
+      });
+    }
+    startLevel(id) {
+      this.levelId = id;
+      this.remain = CONFIG.levelSeconds;
+      this.idleMs = 0;
+      this.stop();
+      this._interval = setInterval(this._tick, 1e3);
+    }
+    _tick() {
+      this.remain = Math.max(0, this.remain - 1);
+      this.total += 1;
+      this.idleMs += 1e3;
+      if (this.save?.data) {
+        this.save.data.time.total = this.total;
+        this.save.data.time.perLevel[this.levelId] = CONFIG.levelSeconds - this.remain;
+      }
+      bus.emit("timer:tick", { remain: this.remain, total: this.total, level: this.levelId });
+      if (this.idleMs >= CONFIG.idleHintMs) {
+        this.idleMs = 0;
+        bus.emit("idle:timeout", { level: this.levelId });
+      }
+    }
+    stop() {
+      if (this._interval) {
+        clearInterval(this._interval);
+        this._interval = null;
+      }
+    }
+  };
+
+  // js/systems/AbilityMeter.js
+  var AbilityMeter = class {
+    constructor({ saveManager } = {}) {
+      this.save = saveManager;
+      this.hintPenalty = {};
+      this._bind();
+    }
+    _bind() {
+      bus.on("hint:used", ({ level, stage }) => {
+        this.hintPenalty[level] = Math.max(this.hintPenalty[level] || 0, stage * 12);
+      });
+      bus.on("ability:gain", ({ key, amount, insight }) => {
+        const a = this.save?.data?.abilities;
+        if (!a) return;
+        const lvKey = this._levelOfAbility(key);
+        const penalty = this.hintPenalty[lvKey] || 0;
+        a[key] = Math.max(0, Math.min(100, (a[key] || 0) + amount - penalty));
+        if (insight) a.author = Math.min(100, (a.author || 0) + 10);
+        this.save.save({});
+      });
+      bus.on("egg:unlock", () => {
+        const a = this.save?.data?.abilities;
+        if (!a) return;
+        a.synthesis = Math.min(100, (a.synthesis || 0) + 3);
+      });
+    }
+    _levelOfAbility(key) {
+      const map = { retrieve: "level1", compare: "level2", infer: "level3", author: "level4", synthesis: "level5" };
+      return map[key];
+    }
+  };
+
+  // js/systems/AudioManager.js
+  var AudioManager = class {
+    constructor({ saveManager } = {}) {
+      this.save = saveManager;
+      this.ctx = null;
+      this.bgmNode = null;
+      this.enabled = true;
+      this._bind();
+      document.addEventListener("click", () => this._unlock(), { once: true });
+    }
+    _bind() {
+      bus.on("audio:bgm", ({ track }) => this.playBgm(track));
+      bus.on("sfx", ({ name }) => this.sfx(name));
+      bus.on("puzzle:solved", () => this.sfx("correct"));
+      bus.on("puzzle:fail", () => this.sfx("soft_fail"));
+      bus.on("item:pickup", () => this.sfx("pickup"));
+    }
+    _unlock() {
+      if (this.ctx) return;
+      try {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (e) {
+        this.enabled = false;
+      }
+    }
+    _tone(freq, dur = 0.3, type = "sine", gainVal = 0.12) {
+      if (!this.ctx || !this.enabled) return;
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = type;
+      o.frequency.value = freq;
+      g.gain.value = gainVal;
+      g.gain.exponentialRampToValueAtTime(1e-4, this.ctx.currentTime + dur);
+      o.connect(g);
+      g.connect(this.ctx.destination);
+      o.start();
+      o.stop(this.ctx.currentTime + dur);
+    }
+    /** BGM：以五聲音階循環短句佔位（不同關不同基頻） */
+    playBgm(track) {
+      this._unlock();
+      if (!this.ctx || !this.enabled) return;
+      if (this._bgmTimer) clearInterval(this._bgmTimer);
+      const scales = {
+        bgm_lv1: [262, 294, 330, 392, 440],
+        bgm_lv2: [294, 330, 392, 440, 494],
+        bgm_lv3: [220, 262, 294, 330, 392],
+        bgm_lv4: [196, 220, 262, 294, 330],
+        bgm_lv5: [262, 330, 392, 440, 523],
+        bgm_opening: [262, 294, 330, 392, 440],
+        bgm_ending: [330, 392, 440, 523, 587]
+      };
+      const scale = scales[track] || scales.bgm_opening;
+      let i = 0;
+      this._bgmTimer = setInterval(() => {
+        if (!this.enabled) return;
+        this._tone(scale[i % scale.length], 0.6, "triangle", 0.05);
+        i++;
+      }, 900);
+    }
+    sfx(name) {
+      this._unlock();
+      switch (name) {
+        case "correct":
+          this._tone(523, 0.25, "sine", 0.14);
+          setTimeout(() => this._tone(659, 0.3, "sine", 0.12), 120);
+          break;
+        case "soft_fail":
+          this._tone(196, 0.35, "sine", 0.1);
+          break;
+        case "pickup":
+          this._tone(440, 0.15, "triangle", 0.12);
+          break;
+        case "achievement":
+          this._tone(587, 0.2, "sine", 0.14);
+          setTimeout(() => this._tone(784, 0.4, "sine", 0.12), 150);
+          break;
+        default:
+          this._tone(330, 0.2);
+      }
+    }
+    setEnabled(v) {
+      this.enabled = v;
+      if (!v && this._bgmTimer) clearInterval(this._bgmTimer);
+    }
+  };
+
+  // js/scenes/SceneBase.js
+  var SceneBase = class {
+    /** @param {string} id 場景識別 */
+    constructor(id) {
+      this.id = id;
+      this.root = null;
+      this.ctx = null;
+      this._offs = [];
+    }
+    /** 訂閱事件並登記，離場時自動解除，避免記憶體洩漏 */
+    listen(type, handler) {
+      this._offs.push(bus.on(type, handler));
+    }
+    /** 子類覆寫：回傳本場景的 HTML 內容字串或直接操作 this.root */
+    render() {
+      return `<div class="scene"><span class="scene-placeholder">〔${this.id}〕</span></div>`;
+    }
+    /** 進場：由 SceneManager 呼叫 */
+    async enter(ctx) {
+      this.ctx = ctx;
+      const layer = ctx.layers.scene;
+      this.root = document.createElement("div");
+      this.root.className = "scene-wrap";
+      this.root.dataset.scene = this.id;
+      this.root.innerHTML = this.render();
+      layer.appendChild(this.root);
+    }
+    /** 建立 DOM（同步部分），供 SceneManager 於過場中呼叫 */
+    async mount(ctx) {
+      await this.enter(ctx);
+    }
+    /** 子類覆寫：進場後的初始化（綁互動、起動畫、播 BGM） */
+    async onEnter(_ctx) {
+    }
+    /** 子類覆寫：每幀更新 */
+    update(_dt) {
+    }
+    /** 離場：清理 */
+    async exit() {
+      await this.onExit();
+      this._offs.forEach((off) => off());
+      this._offs = [];
+      if (this.root && this.root.parentNode) this.root.parentNode.removeChild(this.root);
+      this.root = null;
+    }
+    /** 子類覆寫：離場前的收尾 */
+    async onExit() {
+    }
+    /** 便捷：在本場景 root 內查詢元素 */
+    $(sel) {
+      return this.root ? this.root.querySelector(sel) : null;
+    }
+    $$(sel) {
+      return this.root ? [...this.root.querySelectorAll(sel)] : [];
+    }
+  };
+
+  // js/scenes/OpeningScene.js
+  var OpeningScene = class extends SceneBase {
+    constructor() {
+      super("opening");
+    }
+    render() {
+      return `
+      <div class="scene scene-opening">
+        <div class="op-paper">
+          <p class="op-verse" id="opVerse">水陸草木之花，可愛者甚蕃……</p>
+          <p class="op-narr">這世上愛花的人很多，愛菊的、愛牡丹的……<br>
+             卻幾乎無人記得，還有一朵花，生於汙泥，而不肯染上一點汙濁。</p>
+          <div class="op-enter" id="opEnter" role="button" tabindex="0">— 踏入霧中書院 —</div>
+        </div>
+      </div>`;
+    }
+    async onEnter(ctx) {
+      const go = () => ctx.game.next();
+      const btn = this.$("#opEnter");
+      btn.addEventListener("click", go);
+      btn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") go();
+      });
+      requestAnimationFrame(() => this.$("#opVerse")?.classList.add("ink-in"));
+    }
+  };
+
+  // js/scenes/TutorialScene.js
+  var TutorialScene = class extends SceneBase {
+    constructor() {
+      super("tutorial");
+    }
+    render() {
+      return `
+      <div class="scene scene-tutorial">
+        <div class="tut-paper">
+          <p class="tut-name">掃葉人</p>
+          <p class="tut-line">「客官迷路了？此處是濂溪書院。<br>
+             在這裡，先看、再想、最後才動手——<br>
+             泥裡藏字，光看是看不清的。」</p>
+          <div class="op-enter" id="tutNext" role="button" tabindex="0">— 前往第一關・淤泥門 —</div>
+        </div>
+      </div>`;
+    }
+    async onEnter(ctx) {
+      const go = () => ctx.game.next();
+      const btn = this.$("#tutNext");
+      btn.addEventListener("click", go);
+      btn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") go();
+      });
+    }
+  };
+
+  // js/data/verses.js
+  var VERSES = [
+    {
+      id: "verse_1",
+      level: 1,
+      name: "殘簡・淤泥",
+      text: "出淤泥而不染",
+      meaning: "蓮從汙泥中生長，卻不受汙染——象徵君子潔身自愛，不同流合汙。"
+    },
+    {
+      id: "verse_2",
+      level: 2,
+      name: "殘簡・清漣",
+      text: "濯清漣而不妖",
+      meaning: "蓮在清水中洗濯卻不妖媚——象徵君子品格清高，不媚世隨俗。"
+    },
+    {
+      id: "verse_3",
+      level: 3,
+      name: "殘簡・通直",
+      text: "中通外直，不蔓不枝",
+      meaning: "花梗中空外直、不蔓生不旁枝——象徵君子虛心正直，不攀附關係。"
+    },
+    {
+      id: "verse_4",
+      level: 4,
+      name: "殘簡・遠清",
+      text: "香遠益清，亭亭淨植，可遠觀而不可褻玩焉",
+      meaning: "香氣遠播更清、亭亭挺立——象徵君子德性芬芳、令人敬重而不敢輕慢。"
+    },
+    {
+      id: "verse_5",
+      level: 5,
+      name: "殘簡・知音",
+      text: "噫！菊之愛，陶後鮮有聞。蓮之愛，同予者何人？牡丹之愛，宜乎眾矣！",
+      meaning: "感嘆愛菊隱者稀、愛蓮君子少、逐富貴者眾——這正是作者的言外之意。"
+    }
+  ];
+  function getVerse(id) {
+    return VERSES.find((v) => v.id === id) || null;
+  }
+
+  // js/data/easterEggs.js
+  var EASTER_EGGS = [
+    {
+      id: "egg_zhou_life",
+      level: 4,
+      title: "周敦頤其人",
+      html: "周敦頤，字茂叔，北宋道州營道人。為官正直清廉，人品高潔。晚年隱居廬山，建濂溪書堂，世稱「濂溪先生」。"
+    },
+    {
+      id: "egg_zhou_timeline",
+      level: 4,
+      title: "濂溪年表",
+      html: "生於真宗天禧元年（1017），卒於神宗熙寧六年（1073），享年五十七。一生為州縣地方官，俸祿甚微，仍捐積蓄救濟宗族。"
+    },
+    {
+      id: "egg_lixue",
+      level: 4,
+      title: "理學之祖",
+      html: "周敦頤融合佛、道思想於儒學，開創「理學」，被尊為宋代理學開山始祖。程顥、程頤（二程）皆出其門下。"
+    },
+    {
+      id: "egg_ercheng",
+      level: 3,
+      title: "二程受業",
+      html: "程顥、程頤兄弟師事周敦頤，後均成著名理學家，將理學發揚光大，史稱「程朱理學」之源。"
+    },
+    {
+      id: "egg_taoyuanming",
+      level: 2,
+      title: "陶淵明與菊",
+      html: "「晉陶淵明獨愛菊」。陶淵明不為五斗米折腰，歸隱田園，菊遂成隱逸高潔的象徵。文中以菊襯蓮，凸顯君子入世之志。"
+    },
+    {
+      id: "egg_mudan",
+      level: 2,
+      title: "牡丹．國色",
+      html: "「自李唐來，世人盛愛牡丹」。唐人尚牡丹，視為富貴華麗之花。文中以牡丹反襯，批判世人逐富貴之風。"
+    },
+    {
+      id: "egg_lotus_botany",
+      level: 1,
+      title: "蓮之生態",
+      html: "蓮生於水底淤泥，花梗中空而外挺直，不生蔓、不旁枝。周敦頤正是取其生態特徵，一一對應君子品德。"
+    },
+    {
+      id: "egg_chuni",
+      level: 1,
+      title: "「淤」字音義",
+      html: "「淤」音ㄩ，指水底爛泥。「出淤泥而不染」的「染」為沾染汙濁——最能代表君子潔身自守。"
+    },
+    {
+      id: "egg_shuti",
+      level: 3,
+      title: "何謂「說」體",
+      html: "「說」又稱「雜說」，是古代用來解說事理或表達看法的文體，與「論」性質相近，合稱「論說文」。"
+    },
+    {
+      id: "egg_jiewuyanzhi",
+      level: 3,
+      title: "借物言志",
+      html: "作者藉描寫蓮花的具體形象，寄託思想與人生理想——這正是〈愛蓮說〉最核心的寫作手法。"
+    },
+    {
+      id: "egg_binyu",
+      level: 5,
+      title: "賓語提前",
+      html: "「菊之愛」「蓮之愛」原為「愛菊」「愛蓮」，將賓語提前並加助詞「之」。同類如「唯利是圖」「馬首是瞻」。"
+    },
+    {
+      id: "egg_plants",
+      level: 2,
+      title: "花木象徵",
+      html: "松柏堅貞、竹虛心有節、梅傲骨、蘭高潔、菊隱逸、蓮清廉、牡丹富貴、紅豆相思——中國文學的花木密碼。"
+    },
+    {
+      id: "egg_buran_buddhism",
+      level: 1,
+      title: "不染與佛理",
+      html: "「出淤泥而不染」與佛教「不染世俗」相呼應，體現佛道思想對周敦頤理學的影響。"
+    },
+    {
+      id: "egg_lianchi",
+      level: 4,
+      title: "濂溪蓮池",
+      html: "周敦頤曾在軍衙東側掘池種蓮，公餘與友人池畔賞花品茗。他留下的蓮池與〈愛蓮說〉，為後世珍視。"
+    },
+    {
+      id: "egg_liangxiu",
+      level: 5,
+      title: "兩袖清風",
+      html: "周敦頤離任廬陵時，將俸祿盡數資助貧困子弟，只餘兩袖清風——正是「不慕錢財，以正道為貴」的寫照。"
+    },
+    {
+      id: "egg_secret_room",
+      level: 5,
+      title: "隱藏．淨植台",
+      html: "若你讀懂了那聲「噫」的言外之意，又幾乎不倚賴提示——一條通往「淨植台」的路，將為真正的君子開啟。"
+    }
+  ];
+  function getEgg(id) {
+    return EASTER_EGGS.find((e) => e.id === id) || null;
+  }
+  function eggsByLevel(lv) {
+    return EASTER_EGGS.filter((e) => e.level === lv);
+  }
+
+  // js/scenes/LevelScene.js
+  var BG_LABEL = {
+    level1: "淤泥門 · 霧鎖殘荷",
+    level2: "三花圃 · 菊牡丹蓮",
+    level3: "通直廊 · 竹林花窗",
+    level4: "濂溪堂 · 書房古琴",
+    level5: "蓮心堂 · 一池清蓮"
+  };
+  var LevelScene = class extends SceneBase {
+    constructor(levelId) {
+      super(levelId);
+      this.level = getLevel(levelId);
+      this.levelNum = parseInt(levelId.replace("level", ""), 10);
+    }
+    render() {
+      const eggs = eggsByLevel(this.levelNum);
+      return `
+      <div class="scene scene-level scene-${this.id}">
+        <div class="level-bg"><span class="level-bg-label">〔${BG_LABEL[this.id] || this.id}〕</span></div>
+        ${eggs.map((e, i) => `<span class="hotspot egg-spot" data-egg="${e.id}"
+            style="left:${12 + i * 20}%; top:${20 + i % 2 * 40}%; width:52px; height:52px;"
+            title="可探索" role="button" tabindex="0">✦</span>`).join("")}
+        <div class="level-actions">
+          <span class="level-explore-tip">✦ 為可探索之處（彩蛋）；準備好後點此開始試煉</span>
+          <span class="op-enter level-begin" id="lvBegin" role="button" tabindex="0">— 開始試煉 —</span>
+        </div>
+      </div>`;
+    }
+    async onEnter(ctx) {
+      this.ctx = ctx;
+      bus.emit("audio:bgm", { track: this.level.bgm });
+      this.$$(".egg-spot").forEach((sp) => {
+        const open = () => this._openEgg(sp.dataset.egg, sp);
+        sp.addEventListener("click", open);
+        sp.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            open();
+          }
+        });
+      });
+      const intro = getDialogue(this.level.intro);
+      if (intro) await ctx.dialogue.play(intro);
+      this.$("#lvBegin").addEventListener("click", () => this._startPuzzles());
+      this.$("#lvBegin").addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") this._startPuzzles();
+      });
+    }
+    _openEgg(id, sp) {
+      const egg = getEgg(id);
+      if (!egg) return;
+      this.ctx.scroll.show({ title: egg.title, html: `<p>${egg.html}</p>` });
+      if (!sp.classList.contains("found")) {
+        sp.classList.add("found");
+        sp.textContent = "✧";
+        bus.emit("egg:unlock", { id });
+      }
+    }
+    async _startPuzzles() {
+      const begin = this.$("#lvBegin");
+      if (begin) begin.style.display = "none";
+      const host = document.createElement("div");
+      host.className = "puzzle-host";
+      this.ctx.layers.panel.appendChild(host);
+      let insightHit = false;
+      for (const def of this.level.puzzles) {
+        host.innerHTML = "";
+        bus.emit("puzzle:start", { level: this.id, id: def.id });
+        const res = await this.ctx.puzzle.run(def, host, this.ctx);
+        if (res && res.insight) insightHit = true;
+      }
+      host.remove();
+      const verse = getVerse(this.level.verse);
+      if (verse) {
+        bus.emit("item:pickup", { id: verse.id, name: verse.name });
+        bus.emit("collectible:get", { id: verse.id });
+        this.ctx.scroll.show({ title: `獲得 ${verse.name}`, html: `<p class="verse-line">${verse.text}</p><p>${verse.meaning}</p>` });
+        await this._wait(1600);
+        this.ctx.scroll.close();
+      }
+      bus.emit("ability:gain", { key: this.level.ability, amount: 100, insight: insightHit });
+      if (this.level.achievement) bus.emit("achievement:unlock", { id: this.level.achievement });
+      if (insightHit) bus.emit("flag:set", { key: "insightTriggered", value: true });
+      const clear = getDialogue(this.level.clear);
+      if (clear) await this.ctx.dialogue.play(clear);
+      bus.emit("level:cleared", { level: this.id });
+      await this.ctx.game.next();
+    }
+    _wait(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+  };
+
+  // js/scenes/EndingScene.js
+  var EndingScene = class extends SceneBase {
+    constructor() {
+      super("ending");
+    }
+    _decideEnding(save) {
+      const insight = save?.flags?.insightTriggered;
+      const eggRate = (save?.easterEggs?.length || 0) / EASTER_EGGS.length;
+      const noHigh = save?.flags?.noHint3Used !== false;
+      if (insight && eggRate >= 0.7 && noHigh) return "hidden";
+      if (insight) return "true";
+      return "normal";
+    }
+    render() {
+      const save = this.ctx?.save || {};
+      const ending = this._decideEnding(save);
+      this._ending = ending;
+      const texts = {
+        normal: { t: "普通結局・集字之人", p: "你集齊了《愛蓮說》一百一十九字，石碑重光。<br>然而周敦頤望著你，輕輕一嘆：「字，你讀完了；心，還在路上。」" },
+        true: { t: "真結局・蓮花知音", p: "你不只集齊了字，更聽見了那聲「噫」背後的心。<br>周敦頤頷首：「同予者，終於有其人。願你出淤泥，而不染。」" },
+        hidden: { t: "隱藏結局・真正君子", p: "幾乎未倚仗提示，遍歷書齋典故，又讀懂了言外之意——<br>霧散，一條通往「淨植台」的路為你而開。你已是那亭亭淨植的君子。" }
+      };
+      const e = texts[ending];
+      return `
+      <div class="scene scene-ending">
+        <div class="ending-paper">
+          <h2 class="ending-title">${e.t}</h2>
+          <p class="ending-text">${e.p}</p>
+          <p class="ending-verse fx-ink-reveal">出淤泥而不染，濯清漣而不妖。</p>
+          <span class="op-enter" id="toResult" role="button" tabindex="0">— 觀你此行所得 —</span>
+        </div>
+      </div>`;
+    }
+    async onEnter(ctx) {
+      this.ctx = ctx;
+      this.root.innerHTML = this.render();
+      bus.emit("audio:bgm", { track: "bgm_ending" });
+      bus.emit("ending:decided", { ending: this._ending });
+      if (this._ending === "hidden") bus.emit("achievement:unlock", { id: "ach_8" });
+      if (this._ending !== "normal") bus.emit("achievement:unlock", { id: "ach_7" });
+      const btn = this.$("#toResult");
+      const go = () => ctx.game.goScene("result");
+      btn.addEventListener("click", go);
+      btn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") go();
+      });
+    }
+  };
+
+  // js/data/achievements.js
+  var ACHIEVEMENTS = [
+    { id: "ach_1", name: "初入蓮境", desc: "完成教學，踏入書院。" },
+    { id: "ach_2", name: "出淤泥", desc: "通關第一關・淤泥門。" },
+    { id: "ach_3", name: "辨花者", desc: "通關第二關・三花圃。" },
+    { id: "ach_4", name: "中通外直", desc: "通關第三關・通直廊。" },
+    { id: "ach_5", name: "聞弦知意", desc: "通關第四關・濂溪堂。" },
+    { id: "ach_6", name: "蓮心可鑑", desc: "通關第五關・蓮心堂。" },
+    { id: "ach_7", name: "蓮花知音", desc: "達成真結局。" },
+    { id: "ach_8", name: "真正君子", desc: "達成隱藏結局。" },
+    { id: "ach_9", name: "博覽群書", desc: "收集全部閱讀文件。" },
+    { id: "ach_10", name: "探索者", desc: "場景互動覆蓋率達九成。" },
+    { id: "ach_11", name: "解謎高手", desc: "全程未使用第三階提示。" },
+    { id: "ach_12", name: "一氣呵成", desc: "單關全程未使用提示。" },
+    { id: "ach_13", name: "濯清漣", desc: "完成所有清水顯字機關。" },
+    { id: "ach_14", name: "不蔓不枝", desc: "語序拼接零錯誤。" },
+    { id: "ach_15", name: "香遠益清", desc: "集齊全部彩蛋。" },
+    { id: "ach_16", name: "陶潛知己", desc: "觸發陶淵明彩蛋。" },
+    { id: "ach_17", name: "洛陽花下", desc: "觸發牡丹文化彩蛋。" },
+    { id: "ach_18", name: "濂溪門人", desc: "觸發理學／二程彩蛋。" },
+    { id: "ach_19", name: "惜時如金", desc: "四十分鐘內通關。" },
+    { id: "ach_20", name: "不改其樂", desc: "同一存檔回訪蓮境三次以上。" }
+  ];
+  function getAchievement(id) {
+    return ACHIEVEMENTS.find((a) => a.id === id) || null;
+  }
+
+  // js/scenes/ResultScene.js
+  var ABILITY_LABEL = { retrieve: "資訊擷取", compare: "比較分析", infer: "推論判斷", author: "作者觀點", synthesis: "統整反思" };
+  var ResultScene = class extends SceneBase {
+    constructor() {
+      super("result");
+    }
+    _title(save, complete) {
+      if (save?.flags?.insightTriggered && (save?.easterEggs?.length || 0) >= 12) return "真正君子";
+      if (save?.flags?.insightTriggered) return "蓮花知音";
+      if (complete >= 100) return "博覽群書";
+      if (complete >= 60) return "探索者";
+      return "初入蓮境";
+    }
+    render() {
+      const s = this.ctx?.save || {};
+      const cleared = s.progress?.clearedLevels?.length || 0;
+      const complete = Math.round(cleared / 5 * 100);
+      const eggRate = Math.round((s.easterEggs?.length || 0) / EASTER_EGGS.length * 100);
+      const achCount = s.achievements?.length || 0;
+      const totalSec = s.time?.total || 0;
+      const fmt = (t) => `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+      const ab = s.abilities || {};
+      const radar = this._radarSVG(ab);
+      const title = this._title(s, complete);
+      return `
+      <div class="scene scene-result">
+        <div class="result-scroll">
+          <h2 class="result-head">蓮境・此行所得</h2>
+          <p class="result-title">稱號：<b>${title}</b></p>
+          <div class="result-grid">
+            <div class="result-metric"><span>完成率</span><b>${complete}%</b></div>
+            <div class="result-metric"><span>彩蛋率</span><b>${eggRate}%</b></div>
+            <div class="result-metric"><span>探索</span><b>${s.easterEggs?.length || 0}/${EASTER_EGGS.length}</b></div>
+            <div class="result-metric"><span>用時</span><b>${fmt(totalSec)}</b></div>
+            <div class="result-metric"><span>成就</span><b>${achCount}/${ACHIEVEMENTS.length}</b></div>
+          </div>
+          <div class="result-radar">${radar}</div>
+          <p class="result-radar-note">閱讀素養五力分析（依你的探索與推理行為評定）</p>
+          <div class="result-ach">${ACHIEVEMENTS.filter((a) => (s.achievements || []).includes(a.id)).map((a) => `<span class="ach-chip">✦ ${a.name}</span>`).join("") || '<span class="ach-chip">尚無成就</span>'}</div>
+          <div class="result-actions">
+            <span class="op-enter" id="replay" role="button" tabindex="0">— 重新入境 —</span>
+          </div>
+        </div>
+      </div>`;
+    }
+    _radarSVG(ab) {
+      const keys = ["retrieve", "compare", "infer", "author", "synthesis"];
+      const cx = 140, cy = 130, R = 90;
+      const pts = keys.map((k, i) => {
+        const ang = -Math.PI / 2 + i * (2 * Math.PI / 5);
+        const v = Math.max(0, Math.min(100, ab[k] || 0)) / 100;
+        return [cx + Math.cos(ang) * R * v, cy + Math.sin(ang) * R * v];
+      });
+      const grid = [0.25, 0.5, 0.75, 1].map((r) => {
+        const p = keys.map((_, i) => {
+          const a = -Math.PI / 2 + i * (2 * Math.PI / 5);
+          return `${cx + Math.cos(a) * R * r},${cy + Math.sin(a) * R * r}`;
+        }).join(" ");
+        return `<polygon points="${p}" fill="none" stroke="#C9A96A" stroke-opacity="0.3"/>`;
+      }).join("");
+      const axis = keys.map((k, i) => {
+        const a = -Math.PI / 2 + i * (2 * Math.PI / 5);
+        const x = cx + Math.cos(a) * (R + 22), y = cy + Math.sin(a) * (R + 22);
+        return `<line x1="${cx}" y1="${cy}" x2="${cx + Math.cos(a) * R}" y2="${cy + Math.sin(a) * R}" stroke="#C9A96A" stroke-opacity="0.3"/>
+              <text x="${x}" y="${y}" font-size="12" fill="#4A4640" text-anchor="middle">${ABILITY_LABEL[k]}</text>`;
+      }).join("");
+      const poly = pts.map((p) => p.join(",")).join(" ");
+      return `<svg viewBox="0 0 280 280" width="280" height="280">${grid}${axis}
+      <polygon points="${poly}" fill="#6E8B7A" fill-opacity="0.45" stroke="#47604F" stroke-width="2"/></svg>`;
+    }
+    async onEnter(ctx) {
+      this.ctx = ctx;
+      this.root.innerHTML = this.render();
+      bus.emit("scene:enter", { scene: "result" });
+      const replay = this.$("#replay");
+      const go = () => {
+        ctx.game.saveManager.reset();
+        location.reload();
+      };
+      replay.addEventListener("click", go);
+      replay.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") go();
+      });
+    }
+  };
+
+  // js/ui/BambooBag.js
+  var BambooBag = class {
+    constructor({ getItems } = {}) {
+      this.getItems = getItems || (() => []);
+      this.open = false;
+      this.el = this._build();
+      this._off = bus.on("item:pickup", () => this._flash());
+    }
+    _build() {
+      const wrap = document.createElement("div");
+      wrap.className = "bamboo-bag hud-item";
+      wrap.setAttribute("role", "button");
+      wrap.setAttribute("tabindex", "0");
+      wrap.setAttribute("aria-label", "背包");
+      wrap.innerHTML = `
+      <svg viewBox="0 0 70 64" class="bag-svg">
+        <path d="M10 22 Q35 4 60 22 L56 58 Q35 64 14 58 Z"
+              fill="#C9A96A" stroke="#47604F" stroke-width="2"/>
+        <path d="M18 24 h34 M16 34 h38 M16 44 h38" stroke="#4A4640" stroke-width="1.4" opacity="0.5"/>
+        <path d="M28 26 v28 M40 26 v28" stroke="#4A4640" stroke-width="1.4" opacity="0.5"/>
+        <path d="M22 20 Q35 10 48 20" fill="none" stroke="#47604F" stroke-width="3"/>
+      </svg>
+      <span class="hud-cap">背包</span>
+      <div class="bag-panel" hidden></div>`;
+      const toggle = () => this.toggle();
+      wrap.querySelector(".bag-svg").addEventListener("click", toggle);
+      wrap.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggle();
+        }
+      });
+      return wrap;
+    }
+    toggle() {
+      this.open = !this.open;
+      const panel = this.el.querySelector(".bag-panel");
+      if (this.open) {
+        this._render(panel);
+        panel.hidden = false;
+        panel.classList.add("show");
+      } else {
+        panel.classList.remove("show");
+        setTimeout(() => panel.hidden = true, 250);
+      }
+    }
+    _render(panel) {
+      const items = this.getItems();
+      panel.innerHTML = items.length ? `<ul class="bag-grid">${items.map(
+        (it) => `<li class="bag-cell" title="${it.name || it.id}">${it.icon || "📜"}<span>${it.name || it.id}</span></li>`
+      ).join("")}</ul>` : `<p class="bag-empty">竹包空空，尚無所得。</p>`;
+    }
+    _flash() {
+      this.el.classList.add("flash");
+      setTimeout(() => this.el.classList.remove("flash"), 800);
+    }
+    destroy() {
+      this._off && this._off();
+    }
+  };
+
+  // js/ui/Lantern.js
+  var Lantern = class {
+    constructor() {
+      this.stage = 0;
+      this.el = this._build();
+    }
+    _build() {
+      const wrap = document.createElement("div");
+      wrap.className = "lantern hud-item";
+      wrap.setAttribute("role", "button");
+      wrap.setAttribute("tabindex", "0");
+      wrap.setAttribute("aria-label", "提示");
+      wrap.innerHTML = `
+      <svg viewBox="0 0 60 90" class="lantern-svg">
+        <line x1="30" y1="0" x2="30" y2="10" stroke="#4A4640" stroke-width="2"/>
+        <ellipse class="lantern-body" cx="30" cy="45" rx="22" ry="30"
+                 fill="#9E4B3B" stroke="#47604F" stroke-width="2"/>
+        <rect x="14" y="12" width="32" height="6" rx="2" fill="#4A4640"/>
+        <rect x="14" y="72" width="32" height="6" rx="2" fill="#4A4640"/>
+        <line x1="30" y1="78" x2="30" y2="88" stroke="#C9A96A" stroke-width="2"/>
+        <circle class="lantern-glow" cx="30" cy="45" r="30" fill="#C9A96A" opacity="0"/>
+      </svg>
+      <span class="hud-cap">提示</span>`;
+      const fire = () => this.request();
+      wrap.addEventListener("click", fire);
+      wrap.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          fire();
+        }
+      });
+      return wrap;
+    }
+    /** 玩家索取提示：三階遞進，發事件給 HintSystem */
+    request() {
+      this.stage = Math.min(this.stage + 1, 3);
+      this.el.style.setProperty("--glow", (this.stage / 3).toFixed(2));
+      this.el.classList.add("lit");
+      const glow = this.el.querySelector(".lantern-glow");
+      if (glow) glow.setAttribute("opacity", (0.15 * this.stage).toFixed(2));
+      bus.emit("hint:request", { stage: this.stage });
+    }
+    /** 換關時重置 */
+    reset() {
+      this.stage = 0;
+      this.el.classList.remove("lit");
+      const glow = this.el.querySelector(".lantern-glow");
+      if (glow) glow.setAttribute("opacity", "0");
+    }
+  };
+
+  // js/ui/HUD.js
+  var SCENE_TITLE = {
+    level1: "第一試・淤泥門",
+    level2: "第二試・三花圃",
+    level3: "第三試・通直廊",
+    level4: "第四試・濂溪堂",
+    level5: "第五試・蓮心堂"
+  };
+  var HUD = class {
+    constructor({ layer, getItems } = {}) {
+      this.layer = layer || document.getElementById("hud-layer");
+      this.getItems = getItems || (() => []);
+      this.bag = new BambooBag({ getItems: this.getItems });
+      this.lantern = new Lantern();
+      this._build();
+      this._bind();
+      this.hide();
+    }
+    _build() {
+      this.chapter = document.createElement("div");
+      this.chapter.className = "hud-topleft chapter-tag";
+      this.chapter.innerHTML = `<span class="chapter-text">—</span>`;
+      this.timer = document.createElement("div");
+      this.timer.className = "hud-topright incense-timer";
+      this.timer.innerHTML = `
+      <svg viewBox="0 0 20 60" class="incense-svg" aria-hidden="true">
+        <rect x="9" y="6" width="2" height="48" fill="#C9A96A"/>
+        <rect class="incense-burn" x="8.5" y="6" width="3" height="0" fill="#9E4B3B"/>
+        <ellipse cx="10" cy="56" rx="6" ry="2.5" fill="#4A4640"/>
+      </svg>
+      <span class="timer-text">08:00</span>
+      <span class="timer-total">共 00:00</span>`;
+      this.bag.el.classList.add("hud-bottomleft");
+      this.lantern.el.classList.add("hud-bottomright");
+      this.layer.append(this.chapter, this.timer, this.bag.el, this.lantern.el);
+    }
+    _bind() {
+      bus.on("scene:enter", ({ scene }) => {
+        if (scene && scene.startsWith("level")) {
+          this.setChapter(SCENE_TITLE[scene] || scene);
+          this.lantern.reset();
+          this.show();
+        } else {
+          this.hide();
+        }
+      });
+      bus.on("timer:tick", ({ remain, total }) => this.setTime(remain, total));
+    }
+    setChapter(text) {
+      this.chapter.querySelector(".chapter-text").textContent = text;
+    }
+    setTime(remainSec = 0, totalSec = 0) {
+      const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+      this.timer.querySelector(".timer-text").textContent = fmt(Math.max(0, remainSec));
+      this.timer.querySelector(".timer-total").textContent = `共 ${fmt(Math.max(0, totalSec))}`;
+      const burn = this.timer.querySelector(".incense-burn");
+      if (burn) {
+        const p = Math.min(1, 1 - remainSec / 480);
+        burn.setAttribute("height", (48 * p).toFixed(1));
+      }
+    }
+    show() {
+      this.layer.querySelectorAll(".hud-topleft,.hud-topright,.hud-bottomleft,.hud-bottomright").forEach((e) => e.style.opacity = "1");
+    }
+    hide() {
+      this.layer.querySelectorAll(".hud-topleft,.hud-topright,.hud-bottomleft,.hud-bottomright").forEach((e) => e.style.opacity = "0");
+    }
+  };
+
+  // js/ui/ScrollPanel.js
+  var ScrollPanel = class {
+    /**
+     * @param {object} opts
+     * @param {HTMLElement} opts.mount 掛載層（通常 panel-layer）
+     */
+    constructor({ mount } = {}) {
+      this.mount = mount || document.getElementById("panel-layer");
+      this.el = null;
+    }
+    /** 展開卷軸顯示內容（title + html 內文） */
+    show({ title = "", html = "", onClose } = {}) {
+      this.close(true);
+      const el = document.createElement("div");
+      el.className = "scroll-panel";
+      el.innerHTML = `
+      <div class="scroll-roller top"></div>
+      <div class="scroll-paper">
+        ${title ? `<h3 class="scroll-title">${title}</h3>` : ""}
+        <div class="scroll-content">${html}</div>
+        <div class="scroll-back" role="button" tabindex="0" aria-label="返回">— 收 卷 —</div>
+      </div>
+      <div class="scroll-roller bottom"></div>`;
+      this.mount.appendChild(el);
+      this.el = el;
+      this._onClose = onClose;
+      requestAnimationFrame(() => el.classList.add("unroll"));
+      const back = el.querySelector(".scroll-back");
+      const doClose = () => this.close();
+      back.addEventListener("click", doClose);
+      back.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          doClose();
+        }
+      });
+    }
+    close(immediate = false) {
+      if (!this.el) return;
+      const el = this.el;
+      this.el = null;
+      const cb = this._onClose;
+      if (immediate) {
+        el.remove();
+        return;
+      }
+      el.classList.remove("unroll");
+      el.classList.add("rolling");
+      setTimeout(() => {
+        el.remove();
+        if (typeof cb === "function") cb();
+      }, 500);
+    }
+  };
+
+  // js/ui/Notification.js
+  var Notification = class {
+    constructor({ layer } = {}) {
+      this.layer = layer || document.getElementById("toast-layer");
+      this._seen = /* @__PURE__ */ new Set();
+      this._bind();
+    }
+    _bind() {
+      bus.on("achievement:unlock", ({ id }) => {
+        if (this._seen.has("a" + id)) return;
+        this._seen.add("a" + id);
+        const a = getAchievement(id);
+        if (a) this.toast("成就達成", a.name, a.desc);
+      });
+      bus.on("egg:unlock", ({ id }) => {
+        if (this._seen.has("e" + id)) return;
+        this._seen.add("e" + id);
+        const e = getEgg(id);
+        if (e) this.toast("發現彩蛋", e.title, "已收入書齋");
+      });
+    }
+    toast(kind, title, desc) {
+      const el = document.createElement("div");
+      el.className = "toast fx-lotus-bloom";
+      el.innerHTML = `
+      <span class="toast-lotus">✽</span>
+      <div class="toast-body"><p class="toast-kind">${kind}</p>
+      <p class="toast-title">${title}</p><p class="toast-desc">${desc}</p></div>`;
+      this.layer.appendChild(el);
+      bus.emit("sfx", { name: "achievement" });
+      setTimeout(() => {
+        el.classList.add("leaving");
+        setTimeout(() => el.remove(), 600);
+      }, 2600);
+    }
+  };
+
+  // js/main.js
+  function fitStage() {
+    const root = document.getElementById("game-root");
+    if (!root) return;
+    const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    root.style.transform = `scale(${scale})`;
+  }
+  async function boot() {
+    fitStage();
+    window.addEventListener("resize", fitStage);
+    const saveManager = new SaveManager();
+    saveManager.load();
+    const game = new Game({ saveManager });
+    const scroll = new ScrollPanel({ mount: document.getElementById("panel-layer") });
+    const dialogue = new Dialogue({ layer: document.getElementById("dialogue-layer") });
+    const puzzle = new PuzzleEngine({ dialogue });
+    const hint = new HintSystem({ scroll });
+    const timer = new Timer({ saveManager });
+    const ability = new AbilityMeter({ saveManager });
+    const audio = new AudioManager({ saveManager });
+    const notify = new Notification({ layer: document.getElementById("toast-layer") });
+    bus.once("game:start", () => {
+      const d = saveManager.data;
+      d.visits = (d.visits || 0) + 1;
+      if (d.visits >= 3) bus.emit("achievement:unlock", { id: "ach_20" });
+      saveManager.save({});
+    });
+    const sceneManager = new SceneManager({ ctxProvider: game });
+    sceneManager.register("opening", () => new OpeningScene()).register("tutorial", () => new TutorialScene()).register("level1", () => new LevelScene("level1")).register("level2", () => new LevelScene("level2")).register("level3", () => new LevelScene("level3")).register("level4", () => new LevelScene("level4")).register("level5", () => new LevelScene("level5")).register("ending", () => new EndingScene()).register("result", () => new ResultScene());
+    game.sceneManager = sceneManager;
+    game.systems = { dialogue, puzzle, scroll, hint, timer, ability, audio, notify, layers: sceneManager.layers };
+    const hud = new HUD({
+      getItems: () => (saveManager.data?.inventory || []).map((id) => {
+        const v = getVerse(id);
+        return v ? { id, name: v.name, icon: "📜" } : { id, name: id, icon: "📦" };
+      })
+    });
+    window.__lianjing = { game, bus, saveManager, sceneManager, hud, dialogue, puzzle, hint, timer, ability, audio };
+    bus.once("game:start", ({ resume, entry }) => {
+      console.log(`[蓮境] 啟動：${resume ? "續玩" : "新局"} → ${entry}`);
+      const bootEl = document.getElementById("boot-screen");
+      if (bootEl) setTimeout(() => bootEl.classList.add("hide"), 600);
+    });
+    await game.start();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
+
+</script>
+</body>
+</html>
