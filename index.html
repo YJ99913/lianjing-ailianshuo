@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>蓮境：周敦頤的最後考驗</title>
+  <meta name="description" content="一款以〈愛蓮說〉為核心的沉浸式古風密室逃脫閱讀素養遊戲。" />
+  <link rel="stylesheet" href="css/reset.css" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/ui.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+  <link rel="stylesheet" href="css/screens.css" />
+  <link rel="stylesheet" href="css/level.css" />
+  <link rel="stylesheet" href="css/result.css" />
+</head>
+<body>
+  <!-- 遊戲以固定 16:9 舞台等比縮放置中 -->
+  <div id="viewport">
+    <div id="game-root">
+      <div id="scene-layer" class="layer"></div>     <!-- 場景 -->
+      <div id="hud-layer" class="layer"></div>       <!-- 四角 HUD -->
+      <div id="dialogue-layer" class="layer"></div>  <!-- 對話 -->
+      <div id="panel-layer" class="layer"></div>     <!-- 背包/謎題/卷軸 -->
+      <div id="overlay-layer" class="layer"></div>   <!-- 過場動畫 -->
+      <div id="toast-layer" class="layer"></div>     <!-- 成就通知 -->
+    </div>
+  </div>
+
+  <!-- 載入畫面 -->
+  <div id="boot-screen">
+    <div class="boot-inner">
+      <div class="boot-ink">蓮</div>
+      <p class="boot-title">蓮境</p>
+      <p class="boot-sub">周敦頤的最後考驗</p>
+      <p class="boot-loading">霧起蓮開，正在入境…</p>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
