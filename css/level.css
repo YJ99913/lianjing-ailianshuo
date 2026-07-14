@@ -1,0 +1,34 @@
+/* ===== level.css — 關卡場景樣式 ===== */
+.scene-level { flex-direction: column; }
+.level-bg {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.level-bg-label { font-family: var(--font-title); font-size: 24px; letter-spacing: 6px; color: var(--ink-soft); opacity: .5; }
+
+/* 各關背景色調（暫以漸層代真實背景圖，接美術後替換 background-image） */
+.scene-level1 .level-bg { background: radial-gradient(circle at 50% 60%, #3a352b, #17150f); }
+.scene-level2 .level-bg { background: radial-gradient(circle at 50% 50%, #2f3a2c, #14170f); }
+.scene-level3 .level-bg { background: radial-gradient(circle at 50% 50%, #26332b, #101711); }
+.scene-level4 .level-bg { background: radial-gradient(circle at 50% 45%, #33302a, #14120d); }
+.scene-level5 .level-bg { background: radial-gradient(circle at 50% 40%, #2b3a38, #101615); }
+
+/* 彩蛋熱區 */
+.egg-spot {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: var(--gold-light); background: rgba(201,169,106,0.12);
+  border: 1px solid rgba(201,169,106,0.4); z-index: 2;
+  animation: lantern-swing 3s var(--ease-soft) infinite;
+}
+.egg-spot.found { color: var(--celadon); background: rgba(110,139,122,0.16); animation: none; }
+
+/* 動作列 */
+.level-actions {
+  position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 12px; z-index: 3; text-align: center;
+}
+.level-explore-tip { font-size: var(--fs-note); color: var(--gold-light); letter-spacing: 1px; opacity: .9; }
+.level-begin { background: rgba(243,236,221,0.9); }
+
+/* 殘句展示 */
+.verse-line { font-family: var(--font-title); font-size: 26px; color: var(--celadon-deep); letter-spacing: 4px; text-align: center; margin-bottom: 12px; }
