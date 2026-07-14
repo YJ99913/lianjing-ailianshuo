@@ -1,0 +1,17 @@
+/* ===== reset.css — 樣式重置 ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font-body);
+  color: var(--ink-black);
+  background: #0d0c0a;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+img { display: block; max-width: 100%; -webkit-user-drag: none; }
+ul, ol { list-style: none; }
+button, input { font-family: inherit; color: inherit; background: none; border: none; outline: none; }
+/* 全案禁用原生 button 外觀，一律以自繪熱區呈現 */
+button { cursor: pointer; }
+a { color: inherit; text-decoration: none; }
