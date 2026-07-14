@@ -1,0 +1,71 @@
+/* ===== ui.css — 古風 UI 元件 ===== */
+
+/* 共用 HUD 元件 */
+.hud-item { display: flex; flex-direction: column; align-items: center; gap: 4px; transition: opacity var(--dur-mid) var(--ease-soft); }
+.hud-cap, .seal-cap, .jade-seal-cap {
+  font-family: var(--font-title); font-size: 14px; letter-spacing: 3px; color: var(--rice-white);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+.hud-topleft, .hud-topright, .hud-bottomleft, .hud-bottomright { transition: opacity var(--dur-mid) var(--ease-soft); }
+
+/* 章節牌（左上） */
+.chapter-tag {
+  padding: 10px 18px; background: var(--paper-panel);
+  border: 1px solid rgba(110,139,122,0.5); border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+.chapter-text { font-family: var(--font-title); font-size: var(--fs-body); color: var(--ink-black); letter-spacing: 3px; }
+
+/* 香炷計時（右上） */
+.incense-timer { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.incense-svg { width: 26px; height: 78px; }
+.timer-text { font-family: var(--font-title); font-size: var(--fs-body); color: var(--rice-white); text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+.timer-total { font-size: 12px; color: var(--gold-light); letter-spacing: 1px; }
+
+/* 燈籠（右下） */
+.lantern { cursor: pointer; }
+.lantern-svg { width: 56px; height: 84px; }
+.lantern .lantern-body { transition: filter var(--dur-mid) var(--ease-soft); }
+.lantern.lit .lantern-body { filter: drop-shadow(0 0 10px var(--gold-light)); }
+
+/* 竹編背包（左下）；不設 position 以免覆蓋 .hud-bottomleft 的絕對定位 */
+.bamboo-bag { cursor: pointer; }
+.bag-svg { width: 64px; height: 58px; transition: transform var(--dur-fast) var(--ease-soft); }
+.bamboo-bag:hover .bag-svg, .bamboo-bag:focus .bag-svg { transform: translateY(-3px); }
+.bamboo-bag.flash .bag-svg { filter: drop-shadow(0 0 12px var(--gold-light)); }
+.bag-panel {
+  position: absolute; bottom: 84px; left: 0; width: 340px;
+  background: var(--paper-panel); border: 1px solid rgba(110,139,122,0.5);
+  border-radius: var(--radius); padding: var(--gap-m); box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  opacity: 0; transform: translateY(8px); transition: opacity .25s var(--ease-soft), transform .25s var(--ease-soft);
+}
+.bag-panel.show { opacity: 1; transform: translateY(0); }
+.bag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap-s); }
+.bag-cell { display: flex; flex-direction: column; align-items: center; font-size: 24px; color: var(--ink-black); }
+.bag-cell span { font-size: 11px; margin-top: 2px; color: var(--ink-soft); }
+.bag-empty { text-align: center; color: var(--ink-soft); font-size: var(--fs-note); }
+
+/* 印章（開始/主要動作） */
+.seal-button { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+.seal-svg { width: 108px; height: 108px; transition: transform var(--dur-fast) var(--ease-soft), filter var(--dur-fast) var(--ease-soft); }
+.seal-button:hover .seal-svg, .seal-button:focus .seal-svg { transform: translateY(-2px); filter: drop-shadow(0 0 10px rgba(158,75,59,0.5)); }
+
+/* 玉璽（確認） */
+.jade-seal { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.jade-seal-svg { width: 76px; height: 76px; transition: transform var(--dur-fast) var(--ease-soft); }
+.jade-seal:hover .jade-seal-svg, .jade-seal:focus .jade-seal-svg { transform: translateY(-2px); }
+.jade-seal.disabled { opacity: .4; pointer-events: none; }
+
+/* 卷軸面板 */
+.scroll-panel { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 60%; max-width: 760px; }
+.scroll-roller { height: 16px; background: linear-gradient(#8a6b3f, #6b5230); border-radius: 8px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); }
+.scroll-paper {
+  background: var(--paper-panel); border-left: 1px solid rgba(110,139,122,0.4); border-right: 1px solid rgba(110,139,122,0.4);
+  padding: var(--gap-l) 48px; max-height: 0; overflow: hidden; transition: max-height .5s var(--ease-soft), padding .5s var(--ease-soft);
+}
+.scroll-panel.unroll .scroll-paper { max-height: 70vh; overflow: auto; }
+.scroll-panel.rolling .scroll-paper { max-height: 0; padding-top: 0; padding-bottom: 0; }
+.scroll-title { font-family: var(--font-title); font-size: var(--fs-h2); color: var(--ink-black); text-align: center; margin-bottom: var(--gap-m); letter-spacing: 3px; }
+.scroll-content { font-size: var(--fs-body); line-height: 2; color: var(--ink-black); letter-spacing: 1px; }
+.scroll-back { text-align: center; margin-top: var(--gap-l); font-family: var(--font-title); color: var(--celadon-deep); letter-spacing: 4px; cursor: pointer; padding: 8px; border-radius: var(--radius); }
+.scroll-back:hover, .scroll-back:focus { color: var(--gold-light); background: rgba(110,139,122,0.12); outline: none; }
