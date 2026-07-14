@@ -1,0 +1,43 @@
+/* ===== tokens.css — Design Tokens（對應 Phase 4 色彩/字體規範） ===== */
+:root {
+  /* 色彩 */
+  --ink-black:   #1C1B18;   /* 墨黑：主文字、描邊 */
+  --ink-soft:    #4A4640;   /* 淡墨：次要文字、陰影 */
+  --rice-white:  #F3ECDD;   /* 米白：背景底、宣紙 */
+  --rice-deep:   #E4D8C0;   /* 舊宣：面板次層 */
+  --celadon:     #6E8B7A;   /* 青綠：主強調、可互動描邊 */
+  --celadon-deep:#47604F;   /* 深青：hover/選中 */
+  --gold-light:  #C9A96A;   /* 淺金：點綴、成就、高亮 */
+  --seal-red:    #9E4B3B;   /* 印泥朱：僅蓋章瞬間，面積 <3% */
+
+  /* 半透明宣紙面板 */
+  --paper-panel: rgba(243, 236, 221, 0.94);
+  --paper-veil:  rgba(28, 27, 24, 0.55);
+
+  /* 字體 */
+  --font-title: "Noto Serif TC", "Source Han Serif TC", "楷體", "KaiTi", serif;
+  --font-body:  "Noto Serif TC", "Source Han Serif TC", "宋體", "SimSun", serif;
+
+  /* 字級 */
+  --fs-title: 40px;
+  --fs-h2:    28px;
+  --fs-dialogue: 22px;
+  --fs-body:  18px;
+  --fs-note:  15px;
+
+  /* 間距與圓角 */
+  --gap-s: 8px;  --gap-m: 16px;  --gap-l: 28px;
+  --radius: 6px;
+
+  /* 動畫緩動（統一柔和曲線） */
+  --ease-soft: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --dur-fast: 0.2s;  --dur-mid: 0.6s;  --dur-slow: 1.2s;
+
+  /* 舞台基準 */
+  --stage-w: 1920px;
+  --stage-h: 1080px;
+
+  /* z-index 層級（對應 Phase 4） */
+  --z-scene: 10; --z-hud: 20; --z-dialogue: 30;
+  --z-panel: 40; --z-overlay: 50; --z-toast: 60; --z-boot: 100;
+}
