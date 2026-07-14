@@ -1,0 +1,124 @@
+/* ===== screens.css — 各畫面樣式 ===== */
+
+#scene-layer .scene,
+#scene-layer .scene-wrap {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.scene { font-family: var(--font-title); color: var(--ink-soft); }
+.scene-placeholder { font-size: 26px; letter-spacing: 6px; opacity: .7; }
+
+/* ---- 墨跡過場遮罩 ---- */
+.ink-transition {
+  position: absolute; inset: 0; z-index: 1;
+  background: radial-gradient(circle at 50% 50%, rgba(28,27,24,0.0), rgba(28,27,24,1) 70%);
+  opacity: 0;
+  transition: opacity 0.7s var(--ease-soft);
+  pointer-events: none;
+}
+.ink-transition.active { opacity: 1; }
+.ink-transition.leaving { opacity: 0; }
+
+/* ---- 通用「宣紙面板」 ---- */
+.op-paper, .tut-paper {
+  max-width: 60%; padding: var(--gap-l) 56px;
+  background: var(--paper-panel);
+  border: 1px solid rgba(110,139,122,0.35);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.35), inset 0 0 60px rgba(228,216,192,0.4);
+  text-align: center;
+}
+
+/* ---- 開場 ---- */
+.scene-opening { background: radial-gradient(circle at 50% 40%, #26221b, #0d0c0a 80%); }
+.op-verse {
+  font-family: var(--font-title); font-size: var(--fs-h2); color: var(--ink-black);
+  letter-spacing: 4px; opacity: 0; filter: blur(6px);
+  transition: opacity 1.2s var(--ease-soft), filter 1.2s var(--ease-soft);
+}
+.op-verse.ink-in { opacity: 1; filter: blur(0); }
+.op-narr {
+  margin-top: var(--gap-l); font-size: var(--fs-body); line-height: 1.9;
+  color: var(--ink-soft); letter-spacing: 2px;
+}
+.op-enter {
+  display: inline-block; margin-top: var(--gap-l);
+  font-family: var(--font-title); font-size: var(--fs-body);
+  color: var(--celadon-deep); letter-spacing: 6px; cursor: pointer;
+  padding: 10px 24px; border-radius: var(--radius);
+  transition: color var(--dur-fast) var(--ease-soft), background var(--dur-fast) var(--ease-soft);
+}
+.op-enter:hover, .op-enter:focus { color: var(--gold-light); background: rgba(110,139,122,0.12); outline: none; }
+
+/* ---- 教學 ---- */
+.scene-tutorial { background: radial-gradient(circle at 50% 45%, #2a2a22, #14130f 80%); }
+.tut-name { font-family: var(--font-title); font-size: var(--fs-body); color: var(--celadon); letter-spacing: 4px; margin-bottom: var(--gap-m); }
+.tut-line { font-size: var(--fs-dialogue); line-height: 2; color: var(--ink-black); letter-spacing: 2px; }
+
+/* ===== 對話框 ===== */
+.dialogue-box {
+  position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%);
+  width: 70%; max-width: 900px; min-height: 120px;
+  background: var(--paper-panel); border: 1px solid rgba(110,139,122,0.5);
+  border-radius: var(--radius); padding: 22px 32px; cursor: pointer;
+  box-shadow: 0 10px 34px rgba(0,0,0,0.4);
+}
+.dlg-npc { font-family: var(--font-title); font-size: var(--fs-body); color: var(--celadon-deep); letter-spacing: 3px; margin-bottom: 8px; }
+.dlg-text { font-size: var(--fs-dialogue); line-height: 1.9; color: var(--ink-black); letter-spacing: 1px; min-height: 1.9em; }
+.dlg-more { position: absolute; right: 20px; bottom: 12px; color: var(--celadon); animation: lantern-swing 1.2s infinite; }
+.dlg-options { margin-top: var(--gap-m); display: flex; flex-direction: column; gap: 10px; }
+.dlg-opt { padding: 12px 18px; background: var(--rice-deep); border: 1px solid rgba(110,139,122,0.4); border-radius: var(--radius); font-size: var(--fs-body); color: var(--ink-black); transition: background var(--dur-fast), color var(--dur-fast); }
+.dlg-opt:hover, .dlg-opt:focus { background: var(--celadon); color: var(--rice-white); outline: none; }
+
+/* ===== 謎題面板 ===== */
+.puzzle-host {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  width: 72%; max-width: 900px; max-height: 80vh; overflow: auto;
+  background: var(--paper-panel); border: 1px solid rgba(110,139,122,0.5);
+  border-radius: var(--radius); padding: var(--gap-l) 40px; box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+.pz-prompt { font-family: var(--font-title); font-size: var(--fs-body); color: var(--ink-black); letter-spacing: 2px; margin-bottom: var(--gap-m); line-height: 1.8; }
+.pz-tip { margin-top: var(--gap-m); font-size: var(--fs-note); color: var(--ink-soft); }
+.pz-done { box-shadow: 0 0 0 2px var(--celadon), 0 12px 40px rgba(0,0,0,0.45); }
+
+/* 語序 */
+.pz-slots { min-height: 48px; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; border-bottom: 2px dashed rgba(110,139,122,0.4); margin-bottom: var(--gap-m); }
+.pz-slot { padding: 8px 14px; background: var(--celadon); color: var(--rice-white); border-radius: var(--radius); font-size: var(--fs-body); cursor: pointer; }
+.pz-pool { display: flex; flex-wrap: wrap; gap: 10px; }
+.pz-chip { padding: 10px 16px; background: var(--rice-deep); border: 1px solid rgba(110,139,122,0.4); border-radius: var(--radius); font-size: var(--fs-body); color: var(--ink-black); cursor: pointer; transition: opacity var(--dur-fast); }
+.pz-chip.seg { max-width: 100%; line-height: 1.6; }
+.pz-chip.used { opacity: .25; pointer-events: none; }
+
+/* 配對 */
+.pz-match { display: flex; gap: 40px; justify-content: center; }
+.pz-col { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.pz-item { padding: 12px 16px; background: var(--rice-deep); border: 1px solid rgba(110,139,122,0.4); border-radius: var(--radius); font-size: var(--fs-body); color: var(--ink-black); cursor: pointer; text-align: center; transition: background var(--dur-fast); }
+.pz-item.sel { background: var(--gold-light); color: var(--ink-black); }
+.pz-item.matched { background: var(--celadon); color: var(--rice-white); pointer-events: none; }
+.pz-item.wrong { background: var(--seal-red); color: var(--rice-white); }
+
+/* 篩選 */
+.pz-filter { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.pz-flower { padding: 18px 24px; background: var(--rice-deep); border: 1px solid rgba(110,139,122,0.4); border-radius: var(--radius); font-size: var(--fs-body); color: var(--ink-black); cursor: pointer; transition: all var(--dur-fast); }
+.pz-flower.removed { opacity: .28; text-decoration: line-through; }
+.pz-flower.wrong { background: var(--seal-red); color: var(--rice-white); }
+
+/* 顯影 */
+.reveal-wall { position: relative; height: 120px; background: linear-gradient(#3a352b,#2a271f); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.reveal-target { font-family: var(--font-title); font-size: 30px; letter-spacing: 6px; color: var(--rice-white); opacity: 0; }
+.reveal-target.shown { opacity: 1; }
+.mud-spot { position: absolute; top: 20%; width: 56px; height: 70px; background: radial-gradient(circle,#4a3f2c,#2a2418); border-radius: 40%; cursor: pointer; transition: opacity .4s; }
+.mud-spot.wiped { opacity: 0; pointer-events: none; }
+
+/* 機關 */
+.mech-stage { text-align: center; margin-bottom: var(--gap-m); }
+.mech-target { display: block; font-family: var(--font-title); font-size: 26px; letter-spacing: 5px; color: var(--ink-black); opacity: .25; transition: opacity .6s; }
+.mech-target.shown { opacity: 1; }
+.mech-gauge { height: 12px; background: var(--rice-deep); border-radius: 6px; overflow: hidden; margin-top: 12px; }
+.mech-fill { height: 100%; background: var(--celadon); transition: width .4s var(--ease-soft); }
+.mech-knob { margin: 0 auto; margin-top: var(--gap-m); width: fit-content; padding: 12px 22px; background: var(--celadon-deep); color: var(--rice-white); border-radius: var(--radius); font-family: var(--font-title); letter-spacing: 2px; cursor: pointer; }
+.mech-knob:hover, .mech-knob:focus { background: var(--celadon); outline: none; }
+
+/* 佔位場景可互動熱區 */
+.hotspot { position: absolute; cursor: pointer; border-radius: 8px; transition: box-shadow var(--dur-fast); }
+.hotspot:hover, .hotspot:focus { box-shadow: 0 0 0 2px var(--gold-light); outline: none; }
